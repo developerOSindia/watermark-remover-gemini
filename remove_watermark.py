@@ -21,8 +21,9 @@ def get_ffmpeg_binary() -> str | None:
         import imageio_ffmpeg
 
         return imageio_ffmpeg.get_ffmpeg_exe()
-    except (ImportError, OSError, RuntimeError):
-        return shutil.which("ffmpeg")
+    except Exception:
+        pass
+    return None
 
 
 ALPHA_THRESHOLD = 0.002
@@ -212,7 +213,7 @@ def detect_watermark_box(
         rx0, ry0 = int(width * 0.5), int(height * 0.5)
         for mask_tpl, bsz in ((m48_gray, 48), (m96_gray, 96)):
             for sc in (0.5, 0.75, 1.0, 1.25):
-                sz = round(bsz * sc)
+                sz = int(round(bsz * sc))
                 if sz < 16 or sz >= roi.shape[0] - 2 or sz >= roi.shape[1] - 2:
                     continue
                 tpl = cv2.resize(mask_tpl, (sz, sz), interpolation=cv2.INTER_AREA)
@@ -354,7 +355,6 @@ def sparkle_inpaint_mask(size: int) -> np.ndarray:
         dtype=np.int32,
     )
     cv2.fillPoly(mask, [points], 255)
-    return cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=1)
     return cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=2)
 
 
@@ -367,7 +367,6 @@ def reconstruct_rows(frame: np.ndarray, box: dict[str, int], mask: np.ndarray) -
             continue
         left = x0 + int(masked[0])
         right = x0 + int(masked[-1])
-        sample_left = max(x0 - 12, left - 8)
         sample_left = max(0, left - 8)
         sample_right = min(frame.shape[1] - 1, right + 8)
         left_pixel = frame[y0 + row, sample_left].astype(np.float32)
@@ -422,15 +421,11 @@ def remove_watermark_from_video(
     else:
         default_offset = 0
     with Image.open(mask_path) as mask_image:
-        success, first_frame = capture.read()
-        if not success:
-            capture.release()
-            raise RuntimeError("Could not read the first video frame")
         # Sample across multiple key frames to reliably locate the watermark with highest confidence
         sample_indices = [0]
         if frame_count > 1:
             step = max(1, min(int(fps * 0.75), frame_count // 6))
-            sample_indices = sorted({0, step, step * 2, step * 3, step * 4, min(frame_count - 1, int(fps * 2))})
+            sample_indices = sorted(list({0, step, step * 2, step * 3, step * 4, min(frame_count - 1, int(fps * 2))}))
 
         best_detected = None
         best_score = -1.0
@@ -449,7 +444,6 @@ def remove_watermark_from_video(
                 break
 
         capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        detected = detect_watermark_box(first_frame, mask_image, base)
 
         if best_detected is None:
             best_detected = {"x": base["x"], "y": base["y"], "size": base["size"], "score": 0.0}
@@ -473,8 +467,9 @@ def remove_watermark_from_video(
     active = alpha >= ALPHA_THRESHOLD
     inpaint_mask = sparkle_inpaint_mask(box["size"])
 
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temporary:
-        temporary_path = Path(temporary.name)
+    temporary = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    temporary_path = Path(temporary.name)
+    temporary.close()
     writer = cv2.VideoWriter(
         str(temporary_path),
         cv2.VideoWriter_fourcc(*"mp4v"),
@@ -552,7 +547,7 @@ def remove_watermark_from_video(
                     stderr=subprocess.PIPE,
                     text=True,
                 )
-        except (OSError, subprocess.CalledProcessError):
+        except Exception:
             shutil.copyfile(temporary_path, output_path)
     else:
         shutil.copyfile(temporary_path, output_path)

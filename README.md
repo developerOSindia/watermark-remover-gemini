@@ -1,8 +1,25 @@
-# Gemini Watermark Remover
+# Gemini & Veo Watermark Remover · AI Cleanroom Studio
 
-Local Streamlit application for removing Gemini-style sparkle watermarks from images and videos. The project is maintained in the [`developerOSindia/watermark-remover-gemini`](https://github.com/developerOSindia/watermark-remover-gemini) repository.
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://watermark-remover-gemini.streamlit.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![DeveloperOS](https://img.shields.io/badge/Built%20By-DeveloperOS-2FD3E1.svg)](https://github.com/developerOSindia)
 
-## What it does
+> **Free, private, and open-source AI watermark remover for Google Gemini and Google Veo videos and images with lossless audio preservation.**
+
+🌐 **Live Web Application:** [https://watermark-remover-gemini.streamlit.app/](https://watermark-remover-gemini.streamlit.app/)
+
+---
+
+## Overview
+
+Google Gemini and Google DeepMind Veo generate synthetic sparkle watermarks on output images and videos. Generic online watermark removal tools rely on heavy neural diffusion that smudges background artwork, creates blur circles, and frequently strips or desyncs video audio tracks.
+
+**DeveloperOS Cleanroom** solves this with a mathematically calibrated pipeline:
+- **Sub-pixel detection:** Multi-frame keyframe consensus dynamically finds the exact position of the watermark.
+- **Bi-harmonic reconstruction & inpainting:** Replaces watermark pixels cleanly without smudging or flattening textures.
+- **Lossless audio passthrough:** Preserves the original AAC/MP3 audio stream via FFmpeg stream copying.
+- **100% Private:** Operates entirely in temporary memory. No cloud databases, no external API calls, zero data retention.
 
 - Processes one image or video at a time, up to 100 MB.
 - Detects the likely watermark region and shows its coordinates and match score.

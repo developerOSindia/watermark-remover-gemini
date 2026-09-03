@@ -571,10 +571,98 @@ st.markdown(
         letter-spacing: 0.08em;
     }
 
+    /* SEO Knowledge Hub & FAQ Cards */
+    .seo-section {
+        background: #111116;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 2rem 2.2rem;
+        margin-top: 2.5rem;
+        margin-bottom: 2rem;
+    }
+    .seo-title {
+        font-family: 'Sora', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        letter-spacing: -0.01em;
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .seo-subtitle {
+        font-size: 0.88rem;
+        color: var(--text-muted);
+        line-height: 1.6;
+        margin-bottom: 1.4rem;
+    }
+    .seo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 1.75rem;
+    }
+    .seo-card {
+        background: #16161E;
+        border: 1px solid #282836;
+        border-radius: 8px;
+        padding: 1.25rem;
+    }
+    .seo-card h3 {
+        font-family: 'Sora', sans-serif;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--cyan);
+        margin: 0 0 0.4rem 0;
+    }
+    .seo-card p {
+        font-size: 0.82rem;
+        color: #C5C5D3;
+        line-height: 1.55;
+        margin: 0;
+    }
+    .faq-accordion {
+        background: #16161E;
+        border: 1px solid #282836;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        overflow: hidden;
+    }
+    .faq-accordion summary {
+        font-family: 'Sora', sans-serif;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-main);
+        padding: 0.95rem 1.2rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        list-style: none;
+    }
+    .faq-accordion summary::-webkit-details-marker {
+        display: none;
+    }
+    .faq-accordion summary:hover {
+        color: var(--cyan);
+    }
+    .faq-accordion[open] summary {
+        color: var(--cyan);
+        border-bottom: 1px solid #282836;
+    }
+    .faq-body {
+        padding: 0.95rem 1.2rem;
+        font-size: 0.84rem;
+        color: #C5C5D3;
+        line-height: 1.6;
+    }
+
     @media (max-width: 768px) {
         .specs-matrix { grid-template-columns: 1fr; }
         .telemetry-grid { grid-template-columns: 1fr; }
         .scorecard-matrix { grid-template-columns: 1fr; }
+        .seo-grid { grid-template-columns: 1fr; }
     }
     </style>
     """,
@@ -659,6 +747,130 @@ def ui_download_button(label, data, file_name, mime, **kwargs):
     except (TypeError, ValueError):
         return st.download_button(label, data, file_name=file_name, mime=mime, use_container_width=True, **kwargs)
 
+
+def render_html(html_str: str):
+    if hasattr(st, "html"):
+        st.html(html_str)
+    else:
+        st.markdown(html_str, unsafe_allow_html=True)
+
+
+def app_rerun():
+    if hasattr(st, "rerun"):
+        st.rerun()
+    elif hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+
+
+def inject_seo_tags():
+    seo_payload = """<script>
+    (function() {
+        try {
+            const head = document.head || (window.parent && window.parent.document && window.parent.document.head);
+            if (!head) return;
+            const doc = head.ownerDocument || document;
+
+            function setMeta(name, attrName, content) {
+                let el = head.querySelector(`meta[${attrName}="${name}"]`);
+                if (!el) {
+                    el = doc.createElement('meta');
+                    el.setAttribute(attrName, name);
+                    head.appendChild(el);
+                }
+                el.setAttribute('content', content);
+            }
+
+            setMeta('description', 'name', 'Free online AI watermark remover for Google Gemini and Veo videos and images. Removes sparkle watermarks cleanly with bi-harmonic inpainting and lossless audio preservation.');
+            setMeta('keywords', 'name', 'gemini watermark remover, veo watermark remover, google gemini watermark, remove veo watermark, ai video watermark remover, free watermark remover');
+            setMeta('robots', 'name', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+            setMeta('author', 'name', 'DeveloperOS');
+
+            setMeta('og:title', 'property', 'Gemini & Veo Watermark Remover | Free AI Cleanroom');
+            setMeta('og:description', 'property', 'Remove Google Gemini and Veo sparkle watermarks cleanly from images and videos with preserved audio.');
+            setMeta('og:type', 'property', 'website');
+            setMeta('og:url', 'property', 'https://watermark-remover-gemini.streamlit.app/');
+            setMeta('og:site_name', 'property', 'DeveloperOS Cleanroom');
+
+            setMeta('twitter:card', 'name', 'summary_large_image');
+            setMeta('twitter:title', 'name', 'Gemini & Veo Watermark Remover | Free AI Cleanroom');
+            setMeta('twitter:description', 'name', 'Remove Google Gemini and Veo sparkle watermarks cleanly from images and videos with preserved audio.');
+
+            let canonical = head.querySelector('link[rel="canonical"]');
+            if (!canonical) {
+                canonical = doc.createElement('link');
+                canonical.setAttribute('rel', 'canonical');
+                head.appendChild(canonical);
+            }
+            canonical.setAttribute('href', 'https://watermark-remover-gemini.streamlit.app/');
+
+            const schemaId = 'developeros-schema-ldjson';
+            if (!doc.getElementById(schemaId)) {
+                const script = doc.createElement('script');
+                script.id = schemaId;
+                script.type = 'application/ld+json';
+                script.text = JSON.stringify({
+                    "@context": "https://schema.org",
+                    "@graph": [
+                        {
+                            "@type": "WebApplication",
+                            "@id": "https://watermark-remover-gemini.streamlit.app/#webapp",
+                            "name": "Gemini Watermark Remover",
+                            "url": "https://watermark-remover-gemini.streamlit.app/",
+                            "description": "Free online AI watermark remover for Google Gemini and Veo videos and images with lossless audio preservation.",
+                            "applicationCategory": "MultimediaApplication",
+                            "operatingSystem": "All",
+                            "offers": {
+                                "@type": "Offer",
+                                "price": "0",
+                                "priceCurrency": "USD"
+                            },
+                            "creator": {
+                                "@type": "Organization",
+                                "name": "DeveloperOS",
+                                "url": "https://github.com/developerOSindia"
+                            }
+                        },
+                        {
+                            "@type": "FAQPage",
+                            "@id": "https://watermark-remover-gemini.streamlit.app/#faq",
+                            "mainEntity": [
+                                {
+                                    "@type": "Question",
+                                    "name": "How do I remove the watermark from Google Gemini images?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "Upload your Gemini-generated image (PNG, JPG, WEBP) to the DeveloperOS Cleanroom. The engine automatically detects the sparkle logo coordinates and reconstructs the pixels with zero blurring."
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": "Can it remove watermarks from Google Veo AI videos without losing audio?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "Yes! The pipeline samples keyframes across the video to detect the exact watermark position, performs frame-by-frame bi-harmonic reconstruction, and losslessly remuxes the original audio track using FFmpeg."
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": "Is this watermark remover free and private?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "Yes, it is 100% free and open-source. Media processing happens in isolated temporary memory and no files or personal data are stored or retained."
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                });
+                head.appendChild(script);
+            }
+        } catch(e) {}
+    })();
+    </script>"""
+    render_html(seo_payload)
+
+
+inject_seo_tags()
 
 # -----------------------------------------------------------------------------
 # Sidebar: Parameters & Engine Controls (Cyber-Red / Obsidian / Cyan)
@@ -805,6 +1017,15 @@ if uploaded is not None:
         st.error("⚠️ File exceeds the 100MB limit. Please upload a file smaller than 100MB.")
         st.stop()
 
+    file_id = f"{uploaded.name}_{file_size_bytes}"
+    if st.session_state.get("active_file_id") != file_id:
+        st.session_state["active_file_id"] = file_id
+        st.session_state.pop("cleaned_image", None)
+        st.session_state.pop("last_duration_ms", None)
+        st.session_state.pop("last_box", None)
+        st.session_state.pop("cleaned_video_bytes", None)
+        st.session_state.pop("cleaned_video_duration", None)
+
     raw_suffix = Path(uploaded.name).suffix.lower()
     ext = raw_suffix.lstrip(".")
     source_path = save_upload(uploaded, raw_suffix)
@@ -853,82 +1074,83 @@ if uploaded is not None:
         score_pct = int(detected.get("score", 0.0) * 100)
         preset_name = detected.get("preset", "Veo Inset").replace("_", " ").title()
 
-        st.markdown(
-            f"""
-            <div class="section-header-bar" style="margin-top:1.8rem;">
-                <span class="section-title-tag">03 / SOURCE PREVIEW</span>
-                <span style="font-family:'JetBrains Mono', monospace; font-size:0.72rem; color:var(--text-muted);">{uploaded.name} · {source_image.width} × {source_image.height}px</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        has_image_result = "cleaned_image" in st.session_state
 
-        # ROI overlay bar
-        st.markdown(
-            f"""
-            <div class="roi-pill-bar">
-                <div class="roi-coord-tag">
-                    <span class="dot-cyan"></span>
-                    <span>ROI: [{x0}, {y0}, {x1}, {y1}]</span>
-                    <span style="color:var(--text-muted); font-size:0.68rem; margin-left:0.4rem;">({preset_name})</span>
-                </div>
-                <div class="roi-mark-detected">
-                    <span>MARK DETECTED ({score_pct}% MATCH)</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        col_img_l, col_img_r = st.columns([1.1, 0.9], gap="large")
-        with col_img_l:
-            show_reticle = st.checkbox("Show watermark detection reticle overlay", value=True)
-            display_preview = draw_watermark_reticle(source_image, detected) if show_reticle else source_image
-            ui_image(display_preview)
-        with col_img_r:
+        # 03 / SOURCE PREVIEW: Only shown before processing so source is NOT shown twice.
+        if not has_image_result:
             st.markdown(
                 f"""
-                <div style="background:#141418; border:1px solid #262633; border-radius:8px; padding:1.1rem; margin-bottom:1rem;">
-                    <div style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--cyan); font-weight:700; margin-bottom:0.5rem;">READY FOR RESTORATION</div>
-                    <div style="font-size:0.85rem; color:#E4E1E7; line-height:1.7;">
-                        • <strong>Dimensions:</strong> {source_image.width} × {source_image.height}px<br>
-                        • <strong>Mark Detected:</strong> <span style="color:var(--amber); font-weight:700;">{score_pct}%</span> ({preset_name})<br>
-                        • <strong>ROI Box:</strong> [{x0}, {y0}, {x1}, {y1}]<br>
-                        • <strong>Engine:</strong> {method.title()} Mode
+                <div class="section-header-bar" style="margin-top:1.8rem;">
+                    <span class="section-title-tag">03 / SOURCE PREVIEW</span>
+                    <span style="font-family:'JetBrains Mono', monospace; font-size:0.72rem; color:var(--text-muted);">{uploaded.name} · {source_image.width} × {source_image.height}px</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # ROI overlay bar
+            st.markdown(
+                f"""
+                <div class="roi-pill-bar">
+                    <div class="roi-coord-tag">
+                        <span class="dot-cyan"></span>
+                        <span>ROI: [{x0}, {y0}, {x1}, {y1}]</span>
+                        <span style="color:var(--text-muted); font-size:0.68rem; margin-left:0.4rem;">({preset_name})</span>
+                    </div>
+                    <div class="roi-mark-detected">
+                        <span>MARK DETECTED ({score_pct}% MATCH)</span>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            process_image_clicked = ui_button("⚡ Process image", type="primary")
 
-        if process_image_clicked:
-            with st.spinner("Restoring pixels on local core..."):
-                t0 = time.perf_counter()
-                cleaned = remove_watermark(
-                    source_image,
-                    gain=gain,
-                    size_scale=size_scale,
-                    method=method,
-                    box=detected,
+            col_img_l, col_img_r = st.columns([1.1, 0.9], gap="large")
+            with col_img_l:
+                show_reticle = st.checkbox("Show watermark detection reticle overlay", value=True)
+                display_preview = draw_watermark_reticle(source_image, detected) if show_reticle else source_image
+                ui_image(display_preview)
+            with col_img_r:
+                st.markdown(
+                    f"""
+                    <div style="background:#141418; border:1px solid #262633; border-radius:8px; padding:1.1rem; margin-bottom:1rem;">
+                        <div style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--cyan); font-weight:700; margin-bottom:0.5rem;">READY FOR RESTORATION</div>
+                        <div style="font-size:0.85rem; color:#E4E1E7; line-height:1.7;">
+                            • <strong>Dimensions:</strong> {source_image.width} × {source_image.height}px<br>
+                            • <strong>Mark Detected:</strong> <span style="color:var(--amber); font-weight:700;">{score_pct}%</span> ({preset_name})<br>
+                            • <strong>ROI Box:</strong> [{x0}, {y0}, {x1}, {y1}]<br>
+                            • <strong>Engine:</strong> {method.title()} Mode
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
-                duration_ms = max(1, round((time.perf_counter() - t0) * 1000))
+                if ui_button("⚡ Process image", type="primary"):
+                    with st.spinner("Restoring pixels on local core..."):
+                        t0 = time.perf_counter()
+                        cleaned = remove_watermark(
+                            source_image,
+                            gain=gain,
+                            size_scale=size_scale,
+                            method=method,
+                            box=detected,
+                        )
+                        duration_ms = max(1, round((time.perf_counter() - t0) * 1000))
+                    st.session_state["cleaned_image"] = cleaned
+                    st.session_state["last_duration_ms"] = duration_ms
+                    st.session_state["last_box"] = detected
+                    app_rerun()
 
-            # Store in session state for instant view switching
-            st.session_state["cleaned_image"] = cleaned
-            st.session_state["last_duration_ms"] = duration_ms
-            st.session_state["last_box"] = detected
-
-        if "cleaned_image" in st.session_state:
+        # When side-by-side is coming: Step 03 source preview is omitted so source appears ONLY ONCE
+        if has_image_result:
             cleaned = st.session_state["cleaned_image"]
             duration_ms = st.session_state.get("last_duration_ms", 48)
             box_used = st.session_state.get("last_box", detected)
 
-            # 04 / Clean Result Section
             st.markdown(
                 f"""
-                <div class="section-header-bar" style="margin-top:2.2rem;">
-                    <span class="section-title-tag">04 / CLEAN RESULT</span>
+                <div class="section-header-bar" style="margin-top:1.8rem;">
+                    <span class="section-title-tag">03 / CLEAN RESULT & COMPARISON</span>
                     <span class="pipeline-badge">RECONSTRUCTED IN {duration_ms}MS</span>
                 </div>
                 """,
@@ -944,7 +1166,19 @@ if uploaded is not None:
             )
 
             if view_mode == "Side-by-Side (Full Frame)":
-                col_source, col_clean = st.columns(2, gap="medium")
+                col_clean, col_source = st.columns(2, gap="medium")
+                with col_clean:
+                    st.markdown(
+                        """
+                        <div class="compare-header" style="border-color: rgba(34, 211, 238, 0.4);">
+                            <span class="compare-header-title" style="color:var(--cyan);">✨ CLEAN · INPAINTED RESULT</span>
+                            <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--cyan); font-weight:700;">NEURAL REPAIR 100%</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    ui_image(cleaned)
+
                 with col_source:
                     st.markdown(
                         """
@@ -957,23 +1191,22 @@ if uploaded is not None:
                     )
                     ui_image(source_image)
 
-                with col_clean:
-                    st.markdown(
-                        """
-                        <div class="compare-header">
-                            <span class="compare-header-title">CLEAN · INPAINTED RESULT</span>
-                            <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--cyan); font-weight:700;">NEURAL REPAIR 100%</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    ui_image(cleaned)
-
             elif view_mode == "100% Zoom Crop (Watermark Region)":
                 crop_orig = make_zoom_crop(source_image, box_used, pad=48)
                 crop_clean = make_zoom_crop(cleaned, box_used, pad=48)
                 col_c1, col_c2 = st.columns(2, gap="medium")
                 with col_c1:
+                    st.markdown(
+                        """
+                        <div class="compare-header" style="border-color: rgba(34, 211, 238, 0.4);">
+                            <span class="compare-header-title" style="color:var(--cyan);">ZOOM CROP · RESTORED PIXELS</span>
+                            <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--cyan); font-weight:700;">ZERO HALO / SUB-PIXEL CLEAN</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    ui_image(crop_clean)
+                with col_c2:
                     st.markdown(
                         """
                         <div class="compare-header">
@@ -984,17 +1217,6 @@ if uploaded is not None:
                         unsafe_allow_html=True,
                     )
                     ui_image(crop_orig)
-                with col_c2:
-                    st.markdown(
-                        """
-                        <div class="compare-header">
-                            <span class="compare-header-title">ZOOM CROP · RESTORED PIXELS</span>
-                            <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--cyan); font-weight:700;">ZERO HALO / SUB-PIXEL CLEAN</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    ui_image(crop_clean)
 
             else:  # Difference Heatmap
                 diff_img = make_diff_heatmap(source_image, cleaned)
@@ -1047,45 +1269,37 @@ if uploaded is not None:
                 unsafe_allow_html=True,
             )
 
-            ui_download_button(
-                "⬇ Download Cleaned PNG",
-                image_download(cleaned),
-                f"clean_{Path(uploaded.name).stem}.png",
-                "image/png",
-            )
+            st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
+            col_iact1, col_iact2 = st.columns([1.1, 0.9], gap="medium")
+            with col_iact1:
+                ui_download_button(
+                    "⬇ Download Cleaned PNG",
+                    image_download(cleaned),
+                    f"clean_{Path(uploaded.name).stem}.png",
+                    "image/png",
+                )
+            with col_iact2:
+                if ui_button("⚡ Re-process with current settings", type="secondary"):
+                    with st.spinner("Re-processing pixels on local core..."):
+                        t0 = time.perf_counter()
+                        cleaned = remove_watermark(
+                            source_image,
+                            gain=gain,
+                            size_scale=size_scale,
+                            method=method,
+                            box=detected,
+                        )
+                        duration_ms = max(1, round((time.perf_counter() - t0) * 1000))
+                    st.session_state["cleaned_image"] = cleaned
+                    st.session_state["last_duration_ms"] = duration_ms
+                    st.session_state["last_box"] = detected
+                    app_rerun()
 
     else:  # Video Pipeline
         source_bytes = source_path.read_bytes()
-        st.markdown(
-            f"""
-            <div class="section-header-bar" style="margin-top:1.8rem;">
-                <span class="section-title-tag">03 / SOURCE VIDEO PREVIEW</span>
-                <span style="font-family:'JetBrains Mono', monospace; font-size:0.72rem; color:var(--text-muted);">{uploaded.name} · {method} mode</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        col_video_l, col_video_r = st.columns([1.1, 0.9], gap="large")
-        with col_video_l:
-            st.video(source_bytes)
-        with col_video_r:
-            st.markdown(
-                f"""
-                <div style="background:#141418; border:1px solid #262633; border-radius:8px; padding:1.1rem; margin-bottom:1rem;">
-                    <div style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--cyan); font-weight:700; margin-bottom:0.5rem;">READY FOR RECONSTRUCTION</div>
-                    <div style="font-size:0.85rem; color:#E4E1E7; line-height:1.7;">
-                        • <strong>File:</strong> {uploaded.name}<br>
-                        • <strong>Size:</strong> {file_size_kb} KB<br>
-                        • <strong>Alignment:</strong> {alignment_label}<br>
-                        • <strong>Engine:</strong> {method.title()} Mode
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            process_video_clicked = ui_button("⚡ Process video", type="primary")
+        has_video_result = "cleaned_video_bytes" in st.session_state
 
-        if process_video_clicked:
+        def execute_video_pipeline():
             output_path = Path(tempfile.mktemp(suffix=".mp4"))
             progress_bar = st.progress(0, text="Initializing local neural frame pipeline...")
 
@@ -1112,47 +1326,209 @@ if uploaded is not None:
                 duration_s = round(time.perf_counter() - t0, 1)
 
             progress_bar.progress(1.0, text=f"Pipeline complete in {duration_s}s! Audio preserved.")
+            cleaned_bytes = output_path.read_bytes()
+            st.session_state["cleaned_video_bytes"] = cleaned_bytes
+            st.session_state["cleaned_video_duration"] = duration_s
+            app_rerun()
 
+        # 03 / SOURCE VIDEO PREVIEW: Only shown before processing so source is NOT shown twice.
+        if not has_video_result:
             st.markdown(
                 f"""
-                <div class="section-header-bar" style="margin-top:2.2rem;">
-                    <span class="section-title-tag">04 / CLEAN VIDEO RESULT</span>
-                    <span class="pipeline-badge">MUXED IN {duration_s}S</span>
+                <div class="section-header-bar" style="margin-top:1.8rem;">
+                    <span class="section-title-tag">03 / SOURCE VIDEO PREVIEW</span>
+                    <span style="font-family:'JetBrains Mono', monospace; font-size:0.72rem; color:var(--text-muted);">{uploaded.name} · {method} mode</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            cleaned_bytes = output_path.read_bytes()
-            col_v1, col_v2 = st.columns(2, gap="medium")
-            with col_v1:
+            col_video_l, col_video_r = st.columns([1.1, 0.9], gap="large")
+            with col_video_l:
+                st.video(source_bytes)
+            with col_video_r:
                 st.markdown(
-                    """
-                    <div class="compare-header">
-                        <span class="compare-header-title">SOURCE · ORIGINAL</span>
-                        <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--amber); font-weight:700;">WATERMARK DETECTED</span>
+                    f"""
+                    <div style="background:#141418; border:1px solid #262633; border-radius:8px; padding:1.1rem; margin-bottom:1rem;">
+                        <div style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--cyan); font-weight:700; margin-bottom:0.5rem;">READY FOR RECONSTRUCTION</div>
+                        <div style="font-size:0.85rem; color:#E4E1E7; line-height:1.7;">
+                            • <strong>File:</strong> {uploaded.name}<br>
+                            • <strong>Size:</strong> {file_size_kb} KB<br>
+                            • <strong>Alignment:</strong> {alignment_label}<br>
+                            • <strong>Engine:</strong> {method.title()} Mode
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
-                st.video(source_bytes)
-            with col_v2:
+                if ui_button("⚡ Process video", type="primary"):
+                    execute_video_pipeline()
+
+        # When side-by-side is coming: Step 03 source preview is omitted so source appears ONLY ONCE
+        if has_video_result:
+            cleaned_bytes = st.session_state["cleaned_video_bytes"]
+            duration_s = st.session_state.get("cleaned_video_duration", 0.0)
+
+            st.markdown(
+                f"""
+                <div class="section-header-bar" style="margin-top:1.8rem;">
+                    <span class="section-title-tag">03 / CLEAN VIDEO RESULT & COMPARISON</span>
+                    <span class="pipeline-badge">MUXED IN {duration_s}S · AUDIO PRESERVED</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            col_v1, col_v2 = st.columns(2, gap="medium")
+            with col_v1:
                 st.markdown(
                     """
-                    <div class="compare-header">
-                        <span class="compare-header-title">CLEAN · RESTORED CLIP</span>
-                        <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--cyan); font-weight:700;">AUDIO PRESERVED</span>
+                    <div class="compare-header" style="border-color: rgba(34, 211, 238, 0.4);">
+                        <span class="compare-header-title" style="color:var(--cyan);">✨ CLEAN · RESTORED CLIP</span>
+                        <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--cyan); font-weight:700;">WATERMARK REMOVED</span>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
                 st.video(cleaned_bytes)
+            with col_v2:
+                st.markdown(
+                    """
+                    <div class="compare-header">
+                        <span class="compare-header-title">SOURCE · ORIGINAL</span>
+                        <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--amber); font-weight:700;">UNPROCESSED INPUT</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.video(source_bytes)
 
             st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
-            ui_download_button(
-                "⬇ Download Cleaned MP4",
-                cleaned_bytes,
-                f"clean_{Path(uploaded.name).stem}.mp4",
-                "video/mp4",
-            )
+            col_vact1, col_vact2 = st.columns([1.1, 0.9], gap="medium")
+            with col_vact1:
+                ui_download_button(
+                    "⬇ Download Cleaned MP4",
+                    cleaned_bytes,
+                    f"clean_{Path(uploaded.name).stem}.mp4",
+                    "video/mp4",
+                )
+            with col_vact2:
+                if ui_button("⚡ Re-process video with current settings", type="secondary"):
+                    execute_video_pipeline()
+
+# -----------------------------------------------------------------------------
+# SEO Knowledge Hub, Technical Specifications, and FAQs
+# -----------------------------------------------------------------------------
+SEO_KNOWLEDGE_HTML = """<section class="seo-section" aria-label="Technical Guide and FAQ">
+<div class="seo-title">
+<span style="color:var(--primary);">✦</span> 
+<span>HOW IT WORKS · PIXEL RECONSTRUCTION VS BLUR INPAINTING</span>
+</div>
+<div class="seo-subtitle">
+Most generic watermark tools rely on heavy neural diffusion inpainting that smears background textures and leaves visible blur circles. 
+<strong>DeveloperOS Cleanroom</strong> utilizes mathematical logo inverse modeling, multi-frame keyframe consensus, and bi-harmonic inpainting 
+to restore pristine pixel values without loss of clarity or audio tracks.
+</div>
+
+<div class="seo-grid">
+<div class="seo-card">
+<h3>01 / Multi-Frame Keyframe Consensus</h3>
+<p>Scans keyframes across the first 3 seconds of video to detect the exact sub-pixel coordinates of the Google Veo / Gemini sparkle watermark, overcoming scene transitions and motion blur.</p>
+</div>
+<div class="seo-card">
+<h3>02 / Bi-Harmonic Row Reconstruction</h3>
+<p>Reconstructs masked watermark pixels horizontally using clean boundary pixels, eliminating anti-aliasing ghosting and preserving high-frequency textures behind the logo.</p>
+</div>
+<div class="seo-card">
+<h3>03 / Lossless Audio Passthrough</h3>
+<p>Muxes the original AAC/MP3 audio stream directly into the clean video container using FFmpeg, ensuring zero audio degradation, volume clipping, or track desync.</p>
+</div>
+<div class="seo-card">
+<h3>04 / 100% Private & Air-Gapped</h3>
+<p>Processing executes strictly in temporary memory within your browser session. Files are never stored on external databases or sent to third-party AI APIs.</p>
+</div>
+</div>
+
+<div class="seo-title" style="margin-top:2.2rem;">
+<span style="color:var(--cyan);">✦</span> 
+<span>TECHNICAL SPECIFICATIONS & PRESETS MATRIX</span>
+</div>
+<div class="seo-subtitle">
+Engineered for high-throughput video pipelines and creator workflows.
+</div>
+
+<div style="overflow-x:auto; margin-bottom: 2rem;">
+<table style="width:100%; border-collapse: collapse; font-family:'JetBrains Mono', monospace; font-size:0.8rem; text-align:left; background:#14141A; border:1px solid #282836; border-radius:8px;">
+<thead>
+<tr style="background:#1B1B24; border-bottom:1px solid #282836; color:var(--text-main);">
+<th style="padding:0.75rem 1rem;">PIPELINE ASSET</th>
+<th style="padding:0.75rem 1rem;">SUPPORTED FORMATS</th>
+<th style="padding:0.75rem 1rem;">DETECTION STRATEGY</th>
+<th style="padding:0.75rem 1rem;">AUDIO PIPELINE</th>
+<th style="padding:0.75rem 1rem;">MAX SIZE</th>
+</tr>
+</thead>
+<tbody style="color:#C5C5D3;">
+<tr style="border-bottom:1px solid #1E1E28;">
+<td style="padding:0.75rem 1rem; color:var(--cyan); font-weight:700;">Google Veo Video</td>
+<td style="padding:0.75rem 1rem;">MP4, MOV, MKV, WEBM</td>
+<td style="padding:0.75rem 1rem;">Multi-frame adaptive sampling</td>
+<td style="padding:0.75rem 1rem; color:#4ade80;">Direct stream copy (Lossless)</td>
+<td style="padding:0.75rem 1rem;">100 MB</td>
+</tr>
+<tr>
+<td style="padding:0.75rem 1rem; color:var(--primary-hover); font-weight:700;">Google Gemini Image</td>
+<td style="padding:0.75rem 1rem;">PNG, JPG, JPEG, WEBP</td>
+<td style="padding:0.75rem 1rem;">Sub-pixel corner template match</td>
+<td style="padding:0.75rem 1rem; color:var(--text-muted);">N/A (Visual)</td>
+<td style="padding:0.75rem 1rem;">100 MB</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="seo-title" style="margin-top:2.2rem;">
+<span style="color:var(--amber);">✦</span> 
+<span>FREQUENTLY ASKED QUESTIONS (FAQ)</span>
+</div>
+<div class="seo-subtitle">
+Direct answers to common queries regarding Google Gemini & Veo watermark removal.
+</div>
+
+<details class="faq-accordion">
+<summary>How do I remove the watermark from Google Gemini images? <span>▾</span></summary>
+<div class="faq-body">
+Simply upload your Gemini-generated image (PNG, JPG, or WEBP) to the DeveloperOS Cleanroom workbench above. The engine automatically locates the sparkle logo coordinates and applies pixel-accurate bi-harmonic reconstruction to eliminate the mark without blurring the surrounding artwork.
+</div>
+</details>
+
+<details class="faq-accordion">
+<summary>Does this tool remove the watermark from Google Veo AI videos? <span>▾</span></summary>
+<div class="faq-body">
+Yes. The pipeline is specifically tuned for Google Veo AI clips (both vertical 9:16 reels and widescreen 16:9 videos). It automatically samples video keyframes to establish consensus coordinates for the sparkle logo and applies inpainting frame-by-frame.
+</div>
+</details>
+
+<details class="faq-accordion">
+<summary>Will my video lose audio quality or sound sync? <span>▾</span></summary>
+<div class="faq-body">
+No. Unlike other tools that discard audio or re-encode sound with quality loss, DeveloperOS Cleanroom uses FFmpeg stream copying to pass through original AAC, MP3, and PCM audio tracks untouched.
+</div>
+</details>
+
+<details class="faq-accordion">
+<summary>Is DeveloperOS Gemini Watermark Remover free to use? <span>▾</span></summary>
+<div class="faq-body">
+Yes, this tool is 100% free and open-source under the MIT license. There are no subscriptions, watermarks added by our tool, or hidden credit gates.
+</div>
+</details>
+
+<details class="faq-accordion">
+<summary>Is my uploaded content private and secure? <span>▾</span></summary>
+<div class="faq-body">
+Yes, completely. All video and image processing occurs in temporary air-gapped system memory for your active browser session. Once your session ends, the temporary data is deleted immediately. We do not store, log, or train models on user content.
+</div>
+</details>
+</section>"""
+
+render_html(SEO_KNOWLEDGE_HTML)
 
 st.markdown('<div class="cleanroom-footer">DEVELOPEROS · GEMINI WATERMARK REMOVER · 100% PRIVATE AIR-GAPPED WORKSPACE</div>', unsafe_allow_html=True)
