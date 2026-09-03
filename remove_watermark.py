@@ -370,7 +370,7 @@ def reconstruct_rows(frame: np.ndarray, box: dict[str, int], mask: np.ndarray) -
 def remove_watermark_from_video(
     input_path: Path,
     output_path: Path,
-    mask_path: Path,
+    mask_path: Path | None = None,
     gain: float = 1.0,
     size_scale: float = 1.0,
     offset_x: int | None = None,
@@ -379,6 +379,20 @@ def remove_watermark_from_video(
     method: str = "reconstruct",
     progress_callback: callable | None = None,
 ) -> None:
+    if mask_path is None or not Path(mask_path).exists():
+        candidates = [
+            Path(__file__).parent / "assets" / "bg_96.png",
+            Path(__file__).parent / "assets" / "bg_48.png",
+            Path(__file__).parent / "bg_96.png",
+            Path(__file__).parent / "bg_48.png",
+            Path.cwd() / "assets" / "bg_96.png",
+            Path.cwd() / "gemini-watermark-remover" / "assets" / "bg_96.png",
+        ]
+        found = next((c for c in candidates if c.exists()), None)
+        if found is None:
+            raise FileNotFoundError("Could not find watermark asset bg_96.png")
+        mask_path = found
+
     capture = cv2.VideoCapture(str(input_path))
     if not capture.isOpened():
         raise RuntimeError(f"Could not open video: {input_path}")

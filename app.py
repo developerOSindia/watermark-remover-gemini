@@ -603,6 +603,27 @@ def make_diff_heatmap(orig: Image.Image, clean: Image.Image) -> Image.Image:
     return Image.fromarray(heatmap)
 
 
+def ui_image(image, **kwargs):
+    try:
+        st.image(image, width="stretch", **kwargs)
+    except (TypeError, ValueError):
+        st.image(image, use_container_width=True, **kwargs)
+
+
+def ui_button(label, **kwargs):
+    try:
+        return st.button(label, width="stretch", **kwargs)
+    except (TypeError, ValueError):
+        return st.button(label, use_container_width=True, **kwargs)
+
+
+def ui_download_button(label, data, file_name, mime, **kwargs):
+    try:
+        return st.download_button(label, data, file_name=file_name, mime=mime, width="stretch", **kwargs)
+    except (TypeError, ValueError):
+        return st.download_button(label, data, file_name=file_name, mime=mime, use_container_width=True, **kwargs)
+
+
 # -----------------------------------------------------------------------------
 # Sidebar: Parameters & Engine Controls (Cyber-Red / Obsidian / Cyan)
 # -----------------------------------------------------------------------------
@@ -699,29 +720,6 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# System Specs Matrix Badges
-# -----------------------------------------------------------------------------
-st.markdown(
-    """
-    <div class="specs-matrix">
-        <div class="spec-card">
-            <span class="spec-card-lbl">PRIVACY</span>
-            <span class="spec-card-val">On-device</span>
-        </div>
-        <div class="spec-card">
-            <span class="spec-card-lbl">OUTPUT</span>
-            <span class="spec-card-val">PNG / MP4</span>
-        </div>
-        <div class="spec-card">
-            <span class="spec-card-lbl">AUDIO</span>
-            <span class="spec-card-val">Preserved</span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-# -----------------------------------------------------------------------------
 # Section 01 / SOURCE MEDIA Dropzone
 # -----------------------------------------------------------------------------
 st.markdown(
@@ -738,13 +736,11 @@ with st.container():
         """
         <div class="studio-dropzone-box">
             <div style="font-family:'Sora', sans-serif; font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-bottom:0.25rem;">Bring one file into the room</div>
-            <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Images and videos are processed locally. Your source never leaves this machine.</div>
             <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Single file processing (max 100MB). Processed 100% locally on your machine.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    uploaded = st.file_uploader("Source media", type=IMAGE_TYPES + VIDEO_TYPES, label_visibility="collapsed")
     uploaded = st.file_uploader(
         "Source media",
         type=IMAGE_TYPES + VIDEO_TYPES,
@@ -780,7 +776,6 @@ if uploaded is not None:
     raw_suffix = Path(uploaded.name).suffix.lower()
     ext = raw_suffix.lstrip(".")
     source_path = save_upload(uploaded, raw_suffix)
-    file_size_kb = round(len(uploaded.getbuffer()) / 1024, 1)
     file_size_kb = round(file_size_bytes / 1024, 1)
 
     # 02 / Telemetry Profile Summary
@@ -852,10 +847,10 @@ if uploaded is not None:
         # Reticle toggle for inspection
         show_reticle = st.checkbox("Show watermark detection reticle overlay", value=True)
         display_preview = draw_watermark_reticle(source_image, detected) if show_reticle else source_image
-        st.image(display_preview, use_container_width=True)
+        ui_image(display_preview)
 
         st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
-        if st.button("⚡ Process image", type="primary", use_container_width=True):
+        if ui_button("⚡ Process image", type="primary"):
             with st.spinner("Restoring pixels on local core..."):
                 t0 = time.perf_counter()
                 cleaned = remove_watermark(
@@ -908,7 +903,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
-                    st.image(source_image, use_container_width=True)
+                    ui_image(source_image)
 
                 with col_clean:
                     st.markdown(
@@ -920,7 +915,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
-                    st.image(cleaned, use_container_width=True)
+                    ui_image(cleaned)
 
             elif view_mode == "100% Zoom Crop (Watermark Region)":
                 crop_orig = make_zoom_crop(source_image, box_used, pad=48)
@@ -936,7 +931,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
-                    st.image(crop_orig, use_container_width=True)
+                    ui_image(crop_orig)
                 with col_c2:
                     st.markdown(
                         """
@@ -947,7 +942,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
-                    st.image(crop_clean, use_container_width=True)
+                    ui_image(crop_clean)
 
             else:  # Difference Heatmap
                 diff_img = make_diff_heatmap(source_image, cleaned)
@@ -963,7 +958,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
-                    st.image(diff_img, use_container_width=True)
+                    ui_image(diff_img)
                 with col_d2:
                     st.markdown(
                         """
@@ -974,7 +969,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
-                    st.image(crop_diff, use_container_width=True)
+                    ui_image(crop_diff)
 
             # Scorecard Telemetry Grid
             st.markdown(
@@ -1000,12 +995,11 @@ if uploaded is not None:
                 unsafe_allow_html=True,
             )
 
-            st.download_button(
+            ui_download_button(
                 "⬇ Download Cleaned PNG",
                 image_download(cleaned),
                 f"clean_{Path(uploaded.name).stem}.png",
                 "image/png",
-                use_container_width=True,
             )
 
     else:  # Video Pipeline
@@ -1022,7 +1016,7 @@ if uploaded is not None:
         st.video(source_bytes)
 
         st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
-        if st.button("⚡ Process video", type="primary", use_container_width=True):
+        if ui_button("⚡ Process video", type="primary"):
             output_path = Path(tempfile.mktemp(suffix=".mp4"))
             progress_bar = st.progress(0, text="Initializing local neural frame pipeline...")
 
@@ -1033,9 +1027,13 @@ if uploaded is not None:
 
             with st.spinner("Processing video frames and preserving audio tracks..."):
                 t0 = time.perf_counter()
+                mask_asset = ASSET_DIR / "bg_96.png"
+                if not mask_asset.exists():
+                    mask_asset = APP_DIR / "assets" / "bg_96.png"
                 remove_watermark_from_video(
                     source_path,
                     output_path,
+                    mask_path=mask_asset,
                     gain=gain,
                     size_scale=size_scale,
                     preset=preset,
@@ -1081,12 +1079,11 @@ if uploaded is not None:
                 st.video(cleaned_bytes)
 
             st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
-            st.download_button(
+            ui_download_button(
                 "⬇ Download Cleaned MP4",
                 cleaned_bytes,
                 f"clean_{Path(uploaded.name).stem}.mp4",
                 "video/mp4",
-                use_container_width=True,
             )
 
 st.markdown('<div class="cleanroom-footer">DEVELOPEROS · GEMINI WATERMARK REMOVER · 100% PRIVATE AIR-GAPPED WORKSPACE</div>', unsafe_allow_html=True)
