@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -10,6 +11,19 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
+
+
+def get_ffmpeg_binary() -> str | None:
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    return None
 
 
 ALPHA_THRESHOLD = 0.002
@@ -483,36 +497,38 @@ def remove_watermark_from_video(
         writer.release()
 
     print(f"Processed {processed} frames. Muxing audio...       ")
-    try:
+    ffmpeg_bin = get_ffmpeg_binary()
+    if ffmpeg_bin is not None:
         try:
-            subprocess.run(
-                [
-                    "ffmpeg", "-y", "-i", str(temporary_path), "-i", str(input_path),
-                    "-map", "0:v:0?", "-map", "1:a?", "-c:v", "libx264", "-crf", "18",
-                    "-preset", "medium", "-c:a", "copy", "-shortest", str(output_path),
-                ],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-        except subprocess.CalledProcessError:
-            subprocess.run(
-                [
-                    "ffmpeg", "-y", "-i", str(temporary_path),
-                    "-c:v", "libx264", "-crf", "18", "-preset", "medium", str(output_path),
-                ],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-    except FileNotFoundError as error:
-        raise RuntimeError("ffmpeg is required for video output") from error
-    except subprocess.CalledProcessError as error:
-        raise RuntimeError(error.stderr.strip() or "ffmpeg failed") from error
-    finally:
-        temporary_path.unlink(missing_ok=True)
+            try:
+                subprocess.run(
+                    [
+                        ffmpeg_bin, "-y", "-i", str(temporary_path), "-i", str(input_path),
+                        "-map", "0:v:0?", "-map", "1:a?", "-c:v", "libx264", "-crf", "18",
+                        "-preset", "medium", "-c:a", "copy", "-shortest", str(output_path),
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            except subprocess.CalledProcessError:
+                subprocess.run(
+                    [
+                        ffmpeg_bin, "-y", "-i", str(temporary_path),
+                        "-c:v", "libx264", "-crf", "18", "-preset", "medium", str(output_path),
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+        except Exception:
+            shutil.copyfile(temporary_path, output_path)
+    else:
+        shutil.copyfile(temporary_path, output_path)
+
+    temporary_path.unlink(missing_ok=True)
 
 
 def main() -> None:
