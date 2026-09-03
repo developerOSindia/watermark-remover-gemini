@@ -692,32 +692,9 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.markdown('<h1 class="main-title">Cleanroom</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-title">Gemini Watermark Remover</h1>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="main-lede">Remove the mark. Keep the frame. A private workspace for cleaning Gemini-style sparkle marks from stills and clips.</p>',
-    unsafe_allow_html=True,
-)
-
-# -----------------------------------------------------------------------------
-# System Specs Matrix Badges
-# -----------------------------------------------------------------------------
-st.markdown(
-    """
-    <div class="specs-matrix">
-        <div class="spec-card">
-            <span class="spec-card-lbl">PRIVACY</span>
-            <span class="spec-card-val">On-device</span>
-        </div>
-        <div class="spec-card">
-            <span class="spec-card-lbl">OUTPUT</span>
-            <span class="spec-card-val">PNG / MP4</span>
-        </div>
-        <div class="spec-card">
-            <span class="spec-card-lbl">AUDIO</span>
-            <span class="spec-card-val">Preserved</span>
-        </div>
-    </div>
-    """,
+    '<p class="main-lede">Remove the mark. Keep the frame. A private workspace for removing Google Gemini sparkle logos and watermarks from photos and videos.</p>',
     unsafe_allow_html=True,
 )
 
@@ -738,15 +715,23 @@ with st.container():
         """
         <div class="studio-dropzone-box">
             <div style="font-family:'Sora', sans-serif; font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-bottom:0.25rem;">Bring one file into the room</div>
-            <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Images and videos are processed locally. Your source never leaves this machine.</div>
+            <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Single file processing (max 100MB). Processed 100% locally on your machine.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    uploaded = st.file_uploader("Source media", type=IMAGE_TYPES + VIDEO_TYPES, label_visibility="collapsed")
+    uploaded = st.file_uploader(
+        "Source media",
+        type=IMAGE_TYPES + VIDEO_TYPES,
+        accept_multiple_files=False,
+        label_visibility="collapsed",
+        help="Upload 1 image or video file up to 100MB",
+    )
     st.markdown(
         """
         <div class="drop-chips">
+            <span class="drop-chip" style="color:var(--cyan); border-color:var(--cyan-border);">1 FILE AT A TIME</span>
+            <span class="drop-chip" style="color:var(--amber); border-color:var(--amber-border);">MAX 100MB</span>
             <span class="drop-chip">PNG</span>
             <span class="drop-chip">JPG</span>
             <span class="drop-chip">WEBP</span>
@@ -762,10 +747,15 @@ with st.container():
 # Active Workbench (Transitions smoothly once media is uploaded)
 # -----------------------------------------------------------------------------
 if uploaded is not None:
+    file_size_bytes = len(uploaded.getbuffer())
+    if file_size_bytes > 100 * 1024 * 1024:
+        st.error("⚠️ File exceeds the 100MB limit. Please upload a file smaller than 100MB.")
+        st.stop()
+
     raw_suffix = Path(uploaded.name).suffix.lower()
     ext = raw_suffix.lstrip(".")
     source_path = save_upload(uploaded, raw_suffix)
-    file_size_kb = round(len(uploaded.getbuffer()) / 1024, 1)
+    file_size_kb = round(file_size_bytes / 1024, 1)
 
     # 02 / Telemetry Profile Summary
     mode_label = {"reconstruct": "RECON", "inpaint": "INPAINT", "math": "MATH"}.get(method, method.upper())
@@ -1073,4 +1063,4 @@ if uploaded is not None:
                 use_container_width=True,
             )
 
-st.markdown('<div class="cleanroom-footer">DEVELOPEROS · CLEANROOM MEDIA CONSOLE · AIR-GAPPED WORKSPACE</div>', unsafe_allow_html=True)
+st.markdown('<div class="cleanroom-footer">DEVELOPEROS · GEMINI WATERMARK REMOVER · 100% PRIVATE AIR-GAPPED WORKSPACE</div>', unsafe_allow_html=True)
