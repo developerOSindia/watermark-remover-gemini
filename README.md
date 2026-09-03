@@ -12,6 +12,7 @@ Local Streamlit application for removing Gemini-style sparkle watermarks from im
 - Shows source and cleaned media side by side.
 - Provides full-frame, 100% watermark-region crop, and difference-heatmap views for images.
 - Preserves the original video audio track when FFmpeg is available.
+- Checks several video frames and selects the strongest watermark match before processing.
 - Runs locally without cloud uploads, external APIs, or telemetry.
 
 ## Run locally
@@ -24,7 +25,10 @@ streamlit run app.py
 
 Open the local URL printed by Streamlit, usually `http://localhost:8501`.
 
-FFmpeg is required for video output. Verify it with:
+The app uses system FFmpeg when available and falls back to the bundled
+`imageio-ffmpeg` executable. The `packages.txt` entry installs system FFmpeg
+on Streamlit Community Cloud, while `requirements.txt` provides the Python
+fallback. Verify the local command with:
 
 ```bash
 ffmpeg -version
@@ -34,8 +38,8 @@ ffmpeg -version
 
 ### Processing method
 
-- **Line reconstruction**: recommended default. Rebuilds marked rows from nearby clean pixels and usually avoids visible edge halos.
-- **OpenCV inpaint**: fills the marked region from surrounding texture. Useful when the background is detailed or irregular.
+- **OpenCV inpaint**: recommended default. Fills the marked region from surrounding texture and is usually best for detailed or irregular backgrounds.
+- **Line reconstruction**: rebuilds marked rows from nearby clean pixels. It can be useful for simple backgrounds but may flatten stripes or strong texture.
 - **Alpha unblending**: reverses a transparent logo mathematically. Best when the source watermark is a true alpha blend.
 
 ### Watermark strength
@@ -73,13 +77,13 @@ Useful video options:
 
 ```bash
 python3 remove_watermark.py input.mp4 cleaned.mp4 \
-	--method reconstruct \
+	--method inpaint \
 	--gain 0.6 \
 	--size-scale 1.0 \
 	--preset veo
 ```
 
-Available methods are `reconstruct`, `inpaint`, and `math`. Available presets are `veo` and `corner`.
+Available methods are `inpaint` (default), `reconstruct`, and `math`. Available presets are `veo` and `corner`.
 
 ## Project structure
 

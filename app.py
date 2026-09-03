@@ -681,7 +681,7 @@ with st.sidebar:
     st.markdown('<div class="sidebar-section-kicker">ENGINE CALIBRATION</div>', unsafe_allow_html=True)
     method = st.selectbox(
         "Processing method",
-        ["reconstruct", "inpaint", "math"],
+        ["inpaint", "reconstruct", "math"],
         format_func=lambda value: {
             "reconstruct": "Line reconstruction (Cleanest)",
             "inpaint": "OpenCV bi-harmonic fill",
@@ -690,8 +690,8 @@ with st.sidebar:
         help="Select mathematical algorithm. Line reconstruction rebuilds marked rows from nearby pixels and eliminates halo clipping.",
     )
     method_details = {
-        "reconstruct": "Rebuilds marked rows from nearby pixels and keeps edges stable.",
         "inpaint": "OpenCV Telea fast bi-harmonic fill for textured backgrounds.",
+        "reconstruct": "Rebuilds marked rows from nearby pixels and keeps edges stable.",
         "math": "Mathematically reverses the semi-transparent sparkle overlay.",
     }
     st.caption(method_details[method])
