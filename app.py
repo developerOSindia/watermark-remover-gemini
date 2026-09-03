@@ -699,6 +699,29 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
+# System Specs Matrix Badges
+# -----------------------------------------------------------------------------
+st.markdown(
+    """
+    <div class="specs-matrix">
+        <div class="spec-card">
+            <span class="spec-card-lbl">PRIVACY</span>
+            <span class="spec-card-val">On-device</span>
+        </div>
+        <div class="spec-card">
+            <span class="spec-card-lbl">OUTPUT</span>
+            <span class="spec-card-val">PNG / MP4</span>
+        </div>
+        <div class="spec-card">
+            <span class="spec-card-lbl">AUDIO</span>
+            <span class="spec-card-val">Preserved</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# -----------------------------------------------------------------------------
 # Section 01 / SOURCE MEDIA Dropzone
 # -----------------------------------------------------------------------------
 st.markdown(
@@ -715,11 +738,13 @@ with st.container():
         """
         <div class="studio-dropzone-box">
             <div style="font-family:'Sora', sans-serif; font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-bottom:0.25rem;">Bring one file into the room</div>
+            <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Images and videos are processed locally. Your source never leaves this machine.</div>
             <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Single file processing (max 100MB). Processed 100% locally on your machine.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    uploaded = st.file_uploader("Source media", type=IMAGE_TYPES + VIDEO_TYPES, label_visibility="collapsed")
     uploaded = st.file_uploader(
         "Source media",
         type=IMAGE_TYPES + VIDEO_TYPES,
@@ -755,6 +780,7 @@ if uploaded is not None:
     raw_suffix = Path(uploaded.name).suffix.lower()
     ext = raw_suffix.lstrip(".")
     source_path = save_upload(uploaded, raw_suffix)
+    file_size_kb = round(len(uploaded.getbuffer()) / 1024, 1)
     file_size_kb = round(file_size_bytes / 1024, 1)
 
     # 02 / Telemetry Profile Summary
