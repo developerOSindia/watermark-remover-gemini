@@ -355,7 +355,7 @@ st.markdown(
         background: var(--surface-card);
         border: 1px solid var(--border);
         border-radius: 8px;
-        padding: 0.75rem 0.95rem;
+        padding: 0.45rem 0.85rem;
         display: flex;
         flex-direction: column;
         transition: all 0.2s ease;
@@ -522,6 +522,35 @@ st.markdown(
     /* Mode Pill Selector */
     div[data-testid="stRadio"] > div {
         gap: 0.5rem;
+    }
+
+    /* Media Preview Frames (Compact & Focused) */
+    [data-testid="stVideo"], .stVideo {
+        max-width: 100% !important;
+        margin: 0 auto !important;
+    }
+    [data-testid="stVideo"] video, .stVideo video, video {
+        max-height: 280px !important;
+        max-width: 100% !important;
+        object-fit: contain !important;
+        margin: 0 auto !important;
+        display: block !important;
+        border-radius: 8px !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45) !important;
+    }
+
+    [data-testid="stImage"], .stImage {
+        max-width: 100% !important;
+        margin: 0 auto !important;
+    }
+    [data-testid="stImage"] img, .stImage img, .stImage > img {
+        max-height: 280px !important;
+        max-width: 100% !important;
+        object-fit: contain !important;
+        margin: 0 auto !important;
+        display: block !important;
+        border-radius: 8px !important;
     }
 
     /* Footer */
@@ -732,15 +761,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 with st.container():
-    st.markdown(
-        """
-        <div class="studio-dropzone-box">
-            <div style="font-family:'Sora', sans-serif; font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-bottom:0.25rem;">Bring one file into the room</div>
-            <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.5;">Single file processing (max 100MB). Processed 100% locally on your machine.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
     uploaded = st.file_uploader(
         "Source media",
         type=IMAGE_TYPES + VIDEO_TYPES,
@@ -748,21 +768,26 @@ with st.container():
         label_visibility="collapsed",
         help="Upload 1 image or video file up to 100MB",
     )
-    st.markdown(
-        """
-        <div class="drop-chips">
-            <span class="drop-chip" style="color:var(--cyan); border-color:var(--cyan-border);">1 FILE AT A TIME</span>
-            <span class="drop-chip" style="color:var(--amber); border-color:var(--amber-border);">MAX 100MB</span>
-            <span class="drop-chip">PNG</span>
-            <span class="drop-chip">JPG</span>
-            <span class="drop-chip">WEBP</span>
-            <span class="drop-chip">MP4</span>
-            <span class="drop-chip">MOV</span>
-            <span class="drop-chip">WEBM</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if uploaded is None:
+        st.markdown(
+            """
+            <div class="studio-dropzone-box" style="margin-top:0.6rem;">
+                <div style="font-family:'Sora', sans-serif; font-size:1.08rem; font-weight:700; color:#FFFFFF; margin-bottom:0.2rem;">Bring one file into the room</div>
+                <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">Single file processing (max 100MB). Processed 100% locally on your machine.</div>
+            </div>
+            <div class="drop-chips">
+                <span class="drop-chip" style="color:var(--cyan); border-color:var(--cyan-border);">1 FILE AT A TIME</span>
+                <span class="drop-chip" style="color:var(--amber); border-color:var(--amber-border);">MAX 100MB</span>
+                <span class="drop-chip">PNG</span>
+                <span class="drop-chip">JPG</span>
+                <span class="drop-chip">WEBP</span>
+                <span class="drop-chip">MP4</span>
+                <span class="drop-chip">MOV</span>
+                <span class="drop-chip">WEBM</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # -----------------------------------------------------------------------------
 # Active Workbench (Transitions smoothly once media is uploaded)
@@ -777,6 +802,10 @@ if uploaded is not None:
     ext = raw_suffix.lstrip(".")
     source_path = save_upload(uploaded, raw_suffix)
     file_size_kb = round(file_size_bytes / 1024, 1)
+    alignment_label = {
+        "veo": "Veo (Adaptive Inset)",
+        "corner": "Corner (Exact Viewport Edge)",
+    }.get(preset, "Veo (Adaptive Inset)")
 
     # 02 / Telemetry Profile Summary
     mode_label = {"reconstruct": "RECON", "inpaint": "INPAINT", "math": "MATH"}.get(method, method.upper())
@@ -844,13 +873,29 @@ if uploaded is not None:
             unsafe_allow_html=True,
         )
 
-        # Reticle toggle for inspection
-        show_reticle = st.checkbox("Show watermark detection reticle overlay", value=True)
-        display_preview = draw_watermark_reticle(source_image, detected) if show_reticle else source_image
-        ui_image(display_preview)
+        col_img_l, col_img_r = st.columns([1.1, 0.9], gap="large")
+        with col_img_l:
+            show_reticle = st.checkbox("Show watermark detection reticle overlay", value=True)
+            display_preview = draw_watermark_reticle(source_image, detected) if show_reticle else source_image
+            ui_image(display_preview)
+        with col_img_r:
+            st.markdown(
+                f"""
+                <div style="background:#141418; border:1px solid #262633; border-radius:8px; padding:1.1rem; margin-bottom:1rem;">
+                    <div style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--cyan); font-weight:700; margin-bottom:0.5rem;">READY FOR RESTORATION</div>
+                    <div style="font-size:0.85rem; color:#E4E1E7; line-height:1.7;">
+                        • <strong>Dimensions:</strong> {source_image.width} × {source_image.height}px<br>
+                        • <strong>Mark Detected:</strong> <span style="color:var(--amber); font-weight:700;">{score_pct}%</span> ({preset_name})<br>
+                        • <strong>ROI Box:</strong> [{x0}, {y0}, {x1}, {y1}]<br>
+                        • <strong>Engine:</strong> {method.title()} Mode
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            process_image_clicked = ui_button("⚡ Process image", type="primary")
 
-        st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
-        if ui_button("⚡ Process image", type="primary"):
+        if process_image_clicked:
             with st.spinner("Restoring pixels on local core..."):
                 t0 = time.perf_counter()
                 cleaned = remove_watermark(
@@ -1013,10 +1058,27 @@ if uploaded is not None:
             """,
             unsafe_allow_html=True,
         )
-        st.video(source_bytes)
+        col_video_l, col_video_r = st.columns([1.1, 0.9], gap="large")
+        with col_video_l:
+            st.video(source_bytes)
+        with col_video_r:
+            st.markdown(
+                f"""
+                <div style="background:#141418; border:1px solid #262633; border-radius:8px; padding:1.1rem; margin-bottom:1rem;">
+                    <div style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:var(--cyan); font-weight:700; margin-bottom:0.5rem;">READY FOR RECONSTRUCTION</div>
+                    <div style="font-size:0.85rem; color:#E4E1E7; line-height:1.7;">
+                        • <strong>File:</strong> {uploaded.name}<br>
+                        • <strong>Size:</strong> {file_size_kb} KB<br>
+                        • <strong>Alignment:</strong> {alignment_label}<br>
+                        • <strong>Engine:</strong> {method.title()} Mode
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            process_video_clicked = ui_button("⚡ Process video", type="primary")
 
-        st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
-        if ui_button("⚡ Process video", type="primary"):
+        if process_video_clicked:
             output_path = Path(tempfile.mktemp(suffix=".mp4"))
             progress_bar = st.progress(0, text="Initializing local neural frame pipeline...")
 
