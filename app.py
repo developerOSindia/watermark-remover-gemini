@@ -72,11 +72,18 @@ st.markdown(
         background: transparent !important;
         height: 1rem;
     }
-    #MainMenu, footer, header {
+    #MainMenu, footer {
         visibility: hidden !important;
     }
-    .stDeployButton, [data-testid="stDeployButton"], [data-testid="stToolbar"] {
+    .stDeployButton, [data-testid="stDeployButton"] {
         display: none !important;
+    }
+    [data-testid="stToolbar"], [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1000000 !important;
     }
     div[data-testid="stToast"], div[role="dialog"], [data-testid="stNotification"] {
         display: none !important;

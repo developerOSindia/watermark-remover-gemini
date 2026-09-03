@@ -427,13 +427,15 @@ def remove_watermark_from_video(
             raise RuntimeError("Could not read the first video frame")
         capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
         detected = detect_watermark_box(first_frame, mask_image, base)
+        detected_confidently = detected.get("score", 0.0) >= 0.35
+        detected_offset = 0 if detected_confidently else default_offset
         box = resolve_box(
             detected,
             width,
             height,
             size_scale,
-            default_offset if offset_x is None else offset_x,
-            default_offset if offset_y is None else offset_y,
+            detected_offset if offset_x is None else offset_x,
+            detected_offset if offset_y is None else offset_y,
         )
         mask = np.asarray(
             mask_image.resize((box["size"], box["size"]), Image.Resampling.BICUBIC).convert("RGB"),
