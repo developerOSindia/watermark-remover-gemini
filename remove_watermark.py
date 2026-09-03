@@ -370,6 +370,7 @@ def reconstruct_rows(frame: np.ndarray, box: dict[str, int], mask: np.ndarray) -
 def remove_watermark_from_video(
     input_path: Path,
     output_path: Path,
+    mask_path: Path,
     mask_path: Path | None = None,
     gain: float = 1.0,
     size_scale: float = 1.0,

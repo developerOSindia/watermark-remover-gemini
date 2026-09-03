@@ -847,9 +847,11 @@ if uploaded is not None:
         # Reticle toggle for inspection
         show_reticle = st.checkbox("Show watermark detection reticle overlay", value=True)
         display_preview = draw_watermark_reticle(source_image, detected) if show_reticle else source_image
+        st.image(display_preview, use_container_width=True)
         ui_image(display_preview)
 
         st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
+        if st.button("⚡ Process image", type="primary", use_container_width=True):
         if ui_button("⚡ Process image", type="primary"):
             with st.spinner("Restoring pixels on local core..."):
                 t0 = time.perf_counter()
@@ -903,6 +905,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
+                    st.image(source_image, use_container_width=True)
                     ui_image(source_image)
 
                 with col_clean:
@@ -915,6 +918,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
+                    st.image(cleaned, use_container_width=True)
                     ui_image(cleaned)
 
             elif view_mode == "100% Zoom Crop (Watermark Region)":
@@ -931,6 +935,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
+                    st.image(crop_orig, use_container_width=True)
                     ui_image(crop_orig)
                 with col_c2:
                     st.markdown(
@@ -942,6 +947,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
+                    st.image(crop_clean, use_container_width=True)
                     ui_image(crop_clean)
 
             else:  # Difference Heatmap
@@ -958,6 +964,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
+                    st.image(diff_img, use_container_width=True)
                     ui_image(diff_img)
                 with col_d2:
                     st.markdown(
@@ -969,6 +976,7 @@ if uploaded is not None:
                         """,
                         unsafe_allow_html=True,
                     )
+                    st.image(crop_diff, use_container_width=True)
                     ui_image(crop_diff)
 
             # Scorecard Telemetry Grid
@@ -995,11 +1003,13 @@ if uploaded is not None:
                 unsafe_allow_html=True,
             )
 
+            st.download_button(
             ui_download_button(
                 "⬇ Download Cleaned PNG",
                 image_download(cleaned),
                 f"clean_{Path(uploaded.name).stem}.png",
                 "image/png",
+                use_container_width=True,
             )
 
     else:  # Video Pipeline
@@ -1016,6 +1026,7 @@ if uploaded is not None:
         st.video(source_bytes)
 
         st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
+        if st.button("⚡ Process video", type="primary", use_container_width=True):
         if ui_button("⚡ Process video", type="primary"):
             output_path = Path(tempfile.mktemp(suffix=".mp4"))
             progress_bar = st.progress(0, text="Initializing local neural frame pipeline...")
@@ -1079,11 +1090,13 @@ if uploaded is not None:
                 st.video(cleaned_bytes)
 
             st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
+            st.download_button(
             ui_download_button(
                 "⬇ Download Cleaned MP4",
                 cleaned_bytes,
                 f"clean_{Path(uploaded.name).stem}.mp4",
                 "video/mp4",
+                use_container_width=True,
             )
 
 st.markdown('<div class="cleanroom-footer">DEVELOPEROS · GEMINI WATERMARK REMOVER · 100% PRIVATE AIR-GAPPED WORKSPACE</div>', unsafe_allow_html=True)
