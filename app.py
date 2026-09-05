@@ -15,6 +15,10 @@ from remove_watermark import (
     remove_watermark_from_video,
     detect_watermark_box,
 )
+from fingerprint_cleaner import (
+    inspect_image_fingerprints,
+    clean_image_fingerprints,
+)
 
 
 APP_DIR = Path(__file__).parent
@@ -354,7 +358,7 @@ st.markdown(
     /* Telemetry Pods (02 / Processing Profile) */
     .telemetry-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 0.65rem;
         margin-top: 0.85rem;
     }
@@ -658,11 +662,17 @@ st.markdown(
         line-height: 1.6;
     }
 
+    @media (max-width: 992px) {
+        .telemetry-grid { grid-template-columns: repeat(3, 1fr); }
+    }
     @media (max-width: 768px) {
         .specs-matrix { grid-template-columns: 1fr; }
-        .telemetry-grid { grid-template-columns: 1fr; }
+        .telemetry-grid { grid-template-columns: repeat(2, 1fr); }
         .scorecard-matrix { grid-template-columns: 1fr; }
         .seo-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+        .telemetry-grid { grid-template-columns: 1fr; }
     }
     </style>
     """,
@@ -676,10 +686,13 @@ def save_upload(uploaded_file: st.runtime.uploaded_file_manager.UploadedFile, su
         return Path(handle.name)
 
 
-def image_download(image: Image.Image) -> bytes:
+def image_download(image: Image.Image, synthid_mode: str = "none") -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
-    return buffer.getvalue()
+    raw = buffer.getvalue()
+    if synthid_mode in ("safe", "paranoid", "nuclear"):
+        return clean_image_fingerprints(raw, mode=synthid_mode, fmt="PNG")
+    return raw
 
 
 def draw_watermark_reticle(image: Image.Image, box: dict[str, int]) -> Image.Image:
@@ -780,20 +793,20 @@ def inject_seo_tags():
                 el.setAttribute('content', content);
             }
 
-            setMeta('description', 'name', 'Free online AI watermark remover for Google Gemini and Veo videos and images. Removes sparkle watermarks cleanly with bi-harmonic inpainting and lossless audio preservation.');
-            setMeta('keywords', 'name', 'gemini watermark remover, veo watermark remover, google gemini watermark, remove veo watermark, ai video watermark remover, free watermark remover');
+            setMeta('description', 'name', 'Free online AI watermark remover, Google DeepMind SynthID disruptor, and C2PA Content Credentials cleaner for Google Gemini and Veo videos and images. Removes sparkle watermarks cleanly with bi-harmonic inpainting, scrambles SynthID latent frequency trees, and preserves 100% lossless audio.');
+            setMeta('keywords', 'name', 'gemini watermark remover, veo watermark remover, google synthid remover, synthid disruption, c2pa stripper, remove content credentials, ai video watermark remover, google gemini watermark, remove veo watermark, ai image metadata cleaner, free watermark remover, deepmind synthid');
             setMeta('robots', 'name', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
             setMeta('author', 'name', 'DeveloperOS');
 
-            setMeta('og:title', 'property', 'Gemini & Veo Watermark Remover | Free AI Cleanroom');
-            setMeta('og:description', 'property', 'Remove Google Gemini and Veo sparkle watermarks cleanly from images and videos with preserved audio.');
+            setMeta('og:title', 'property', 'Gemini & Veo Watermark Remover · SynthID Disrupter & C2PA Cleaner');
+            setMeta('og:description', 'property', 'Remove Google Gemini & Veo sparkle watermarks, disrupt Google SynthID latent watermarks, and strip C2PA Content Credentials from images and videos with preserved audio.');
             setMeta('og:type', 'property', 'website');
             setMeta('og:url', 'property', 'https://watermark-remover-gemini.streamlit.app/');
-            setMeta('og:site_name', 'property', 'DeveloperOS Cleanroom');
+            setMeta('og:site_name', 'property', 'DeveloperOS Watermark Studio');
 
             setMeta('twitter:card', 'name', 'summary_large_image');
-            setMeta('twitter:title', 'name', 'Gemini & Veo Watermark Remover | Free AI Cleanroom');
-            setMeta('twitter:description', 'name', 'Remove Google Gemini and Veo sparkle watermarks cleanly from images and videos with preserved audio.');
+            setMeta('twitter:title', 'name', 'Gemini & Veo Watermark Remover · SynthID Disrupter & C2PA Cleaner');
+            setMeta('twitter:description', 'name', 'Remove Google Gemini & Veo sparkle watermarks, disrupt Google SynthID latent watermarks, and strip C2PA Content Credentials from images and videos with preserved audio.');
 
             let canonical = head.querySelector('link[rel="canonical"]');
             if (!canonical) {
@@ -814,11 +827,23 @@ def inject_seo_tags():
                         {
                             "@type": "WebApplication",
                             "@id": "https://watermark-remover-gemini.streamlit.app/#webapp",
-                            "name": "Gemini Watermark Remover",
+                            "name": "DeveloperOS Watermark Studio · Gemini, Veo & SynthID Cleaner",
                             "url": "https://watermark-remover-gemini.streamlit.app/",
-                            "description": "Free online AI watermark remover for Google Gemini and Veo videos and images with lossless audio preservation.",
+                            "description": "Free, air-gapped AI watermark remover and DeepMind SynthID disruptor for Google Gemini images, Google Veo videos, and C2PA Content Credentials stripping with lossless audio preservation.",
                             "applicationCategory": "MultimediaApplication",
+                            "applicationSubCategory": "Image and Video Editor",
                             "operatingSystem": "All",
+                            "browserRequirements": "Requires JavaScript. Requires HTML5 Canvas.",
+                            "featureList": [
+                                "Google Gemini 0.5k, 1k, 2k, 4k sparkle watermark removal",
+                                "Google Veo 1080p and 720p portrait and landscape video watermark eradication",
+                                "Veo text watermark template matching and removal",
+                                "Google DeepMind SynthID latent frequency disruption and phase scrambling",
+                                "C2PA manifest (caBX chunk and APP11 JUMBF) stripping",
+                                "Stable Diffusion, Midjourney, ComfyUI, DALL-E prompt scrubbing",
+                                "Lossless video audio stream passthrough via FFmpeg direct copy",
+                                "100% private, client-side memory execution without external telemetry"
+                            ],
                             "offers": {
                                 "@type": "Offer",
                                 "price": "0",
@@ -831,6 +856,38 @@ def inject_seo_tags():
                             }
                         },
                         {
+                            "@type": "HowTo",
+                            "@id": "https://watermark-remover-gemini.streamlit.app/#howto",
+                            "name": "How to Remove Watermarks and Disrupt SynthID from AI Media",
+                            "description": "Step-by-step instructions to cleanly remove Google Gemini sparkle watermarks, disrupt SynthID latent frequencies, and sanitize C2PA Content Credentials using DeveloperOS Watermark Studio.",
+                            "step": [
+                                {
+                                    "@type": "HowToStep",
+                                    "position": 1,
+                                    "name": "Upload Media",
+                                    "text": "Drag and drop any Google Gemini or Veo generated image (PNG, JPG, WEBP) or video (MP4, MOV, WEBM) into the air-gapped dropzone."
+                                },
+                                {
+                                    "@type": "HowToStep",
+                                    "position": 2,
+                                    "name": "Configure Watermark & SynthID Mode",
+                                    "text": "Choose your watermark preset (Auto Detect, Veo Inset, Veo Standard) and select your SynthID sanitization tier (Safe for lossless C2PA strip, Paranoid for DQT reset, or Nuclear for DeepMind SynthID phase disruption)."
+                                },
+                                {
+                                    "@type": "HowToStep",
+                                    "position": 3,
+                                    "name": "Inspect Provenance & Process",
+                                    "text": "Review instant C2PA and AI prompt audit badges, then click Process to run mathematical inpainting and frequency sanitization in local memory."
+                                },
+                                {
+                                    "@type": "HowToStep",
+                                    "position": 4,
+                                    "name": "Compare & Download Sanitized File",
+                                    "text": "Inspect side-by-side or difference heatmaps to verify zero-blur reconstruction, then download the sanitized PNG or MP4 with intact audio."
+                                }
+                            ]
+                        },
+                        {
                             "@type": "FAQPage",
                             "@id": "https://watermark-remover-gemini.streamlit.app/#faq",
                             "mainEntity": [
@@ -839,7 +896,7 @@ def inject_seo_tags():
                                     "name": "How do I remove the watermark from Google Gemini images?",
                                     "acceptedAnswer": {
                                         "@type": "Answer",
-                                        "text": "Upload your Gemini-generated image (PNG, JPG, WEBP) to the DeveloperOS Cleanroom. The engine automatically detects the sparkle logo coordinates and reconstructs the pixels with zero blurring."
+                                        "text": "Upload your Gemini-generated image (PNG, JPG, WEBP) to DeveloperOS Watermark Studio. The engine automatically detects the sparkle logo coordinates from discrete resolution catalogs and reconstructs the pixels with zero blurring using bi-harmonic inpainting."
                                     }
                                 },
                                 {
@@ -847,15 +904,39 @@ def inject_seo_tags():
                                     "name": "Can it remove watermarks from Google Veo AI videos without losing audio?",
                                     "acceptedAnswer": {
                                         "@type": "Answer",
-                                        "text": "Yes! The pipeline samples keyframes across the video to detect the exact watermark position, performs frame-by-frame bi-harmonic reconstruction, and losslessly remuxes the original audio track using FFmpeg."
+                                        "text": "Yes! The pipeline samples keyframes across the video to establish consensus coordinates for the sparkle or Veo text logo, performs frame-by-frame bi-harmonic reconstruction with safety dilation, and losslessly remuxes the original audio track using FFmpeg stream copy."
                                     }
                                 },
                                 {
                                     "@type": "Question",
-                                    "name": "Is this watermark remover free and private?",
+                                    "name": "What is Google SynthID and how does DeveloperOS disrupt it?",
                                     "acceptedAnswer": {
                                         "@type": "Answer",
-                                        "text": "Yes, it is 100% free and open-source. Media processing happens in isolated temporary memory and no files or personal data are stored or retained."
+                                        "text": "Google SynthID embeds imperceptible pseudo-random frequency perturbations into the latent generation process. DeveloperOS's Nuclear mode scrambles sub-LSB spatial frequency phase alignment via asymmetric Lanczos rescaling (0.997), a 2px border uncoupling crop, subtle channel bias, and spatial frequency micro-dithering."
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": "What is C2PA Content Credentials and how does DeveloperOS remove it?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "C2PA (Coalition for Content Provenance and Authenticity) embeds provenance metadata manifests into image containers (caBX chunks in PNG and APP11 JUMBF segments in JPEG). DeveloperOS parses containers at the byte level and losslessly strips all provenance, AI prompts, and EXIF tracking while keeping pixels bit-identical."
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": "What are the differences between Safe, Paranoid, and Nuclear cleaning modes?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "Safe mode is 100% lossless and bit-identical, removing C2PA manifests, AI generation prompts, and EXIF/GPS data without altering a single pixel. Paranoid mode adds sRGB profile standardization and micro-dithering to neutralize camera PRNU and JPEG quantization fingerprints. Nuclear mode actively disrupts SynthID and latent watermarks via spatial-frequency phase scrambling."
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": "Is DeveloperOS Gemini Watermark Remover free and private?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "Yes, it is 100% free and open-source under the MIT license. All media processing happens locally in isolated temporary memory within your session. Files are never stored on cloud servers or sent to external AI APIs."
                                     }
                                 }
                             ]
@@ -924,22 +1005,58 @@ with st.sidebar:
         0.05,
         help="Bounding box dilation factor. 1.00 matches standard detected logo size.",
     )
-    preset = st.radio(
-        "Video alignment",
-        ["veo", "corner"],
-        format_func=lambda value: {"veo": "Veo (Adaptive Inset)", "corner": "Corner (Exact Viewport Edge)"}[value],
-        help="Veo applies the adaptive offset. Corner targets unshifted lower-right viewport edge.",
+    preset = st.selectbox(
+        "Watermark preset",
+        [
+            "auto",
+            "veo_inset",
+            "veo_standard",
+            "veo_compact",
+            "corner",
+            "veo_text",
+        ],
+        format_func=lambda value: {
+            "auto": "✦ Auto Detect (Catalog + Multi-Scale)",
+            "veo_inset": "Veo Inset (Margin 144 / Adaptive)",
+            "veo_standard": "Veo Standard (Margin 108)",
+            "veo_compact": "Veo Compact (Margin 29/40)",
+            "corner": "Corner (Exact Viewport Edge)",
+            "veo_text": "Veo Text Logo ('Veo' Watermark)",
+        }.get(value, value),
+        help="Catalog-assisted geometry targeting. Auto Detect searches discrete size catalogs and multi-scale priors.",
+    )
+
+    st.markdown('<div class="sidebar-section-kicker" style="margin-top:1.2rem;">SYNTHID & PROVENANCE</div>', unsafe_allow_html=True)
+    synthid_mode = st.selectbox(
+        "SynthID & Metadata Scrub",
+        [
+            "none",
+            "safe",
+            "paranoid",
+            "nuclear",
+        ],
+        format_func=lambda val: {
+            "none": "Off (Visible Mark Only)",
+            "safe": "🛡️ Safe (Lossless C2PA & Metadata Strip)",
+            "paranoid": "🔒 Paranoid (Strip + DQT Dither)",
+            "nuclear": "⚡ Nuclear (Disrupt SynthID & Latent Marks)",
+        }.get(val, val),
+        help=(
+            "Safe: strips C2PA manifests and AI prompts losslessly (bit-identical pixels). "
+            "Paranoid: neutralizes JPEG quantization camera signatures. "
+            "Nuclear: scrambles sub-LSB spatial frequency phase to disrupt Google SynthID."
+        ),
     )
 
     st.markdown('<div class="sidebar-rule"></div>', unsafe_allow_html=True)
     with st.expander("How the local reconstruction works"):
         st.markdown(
             """
-            **Line Reconstruction**  
-            Scans the watermark polygon contour and reconstructs damaged pixel rows horizontally from clean perimeter samples. Completely eliminates the black clipping halo.
+            **Line Reconstruction & Smart Inpainting**  
+            Scans watermark contours and reconstructs damaged pixel rows horizontally from clean perimeter samples, with safety dilation zones that eliminate halo artifacts.
 
-            **Multi-Scale Prior Detection**  
-            Scans 4 candidate layout families (`New Adaptive Inset`, `Classic Corner`, `Fixed 96px Inset`, and `Veo Inset`) with normalized cross-correlation and Bayesian priors.
+            **Official Discrete Catalogs (Image & Video)**  
+            Matches input against discrete 0.5k, 1k, 2k, 4k image size priors and Google Veo discrete 1080p/720p portrait/landscape video catalogs (margins 144, 108, 96, 72, 40). Also includes multi-scale template matching for Veo text watermarks.
 
             **100% On-Device & Air-Gapped**  
             Zero cloud endpoints. Pixel calculations run purely inside this local Python execution thread.
@@ -1031,9 +1148,14 @@ if uploaded is not None:
     source_path = save_upload(uploaded, raw_suffix)
     file_size_kb = round(file_size_bytes / 1024, 1)
     alignment_label = {
+        "auto": "Auto Detect (Catalog)",
         "veo": "Veo (Adaptive Inset)",
+        "veo_inset": "Veo Inset (Margin 144)",
+        "veo_standard": "Veo Standard (Margin 108)",
+        "veo_compact": "Veo Compact (Margin 29/40)",
         "corner": "Corner (Exact Viewport Edge)",
-    }.get(preset, "Veo (Adaptive Inset)")
+        "veo_text": "Veo Text Watermark",
+    }.get(preset, preset.title())
 
     # 02 / Telemetry Profile Summary
     mode_label = {"reconstruct": "RECON", "inpaint": "INPAINT", "math": "MATH"}.get(method, method.upper())
@@ -1061,6 +1183,14 @@ if uploaded is not None:
                 <span class="telemetry-pod-lbl">MODE</span>
                 <span class="telemetry-pod-val-cyan">{mode_label}</span>
             </div>
+            <div class="telemetry-pod">
+                <span class="telemetry-pod-lbl">PRESET</span>
+                <span class="telemetry-pod-val-cyan" style="font-size:0.75rem;">{alignment_label.split('(')[0].strip()}</span>
+            </div>
+            <div class="telemetry-pod">
+                <span class="telemetry-pod-lbl">SYNTHID</span>
+                <span class="telemetry-pod-val-amber" style="font-size:0.75rem;">{synthid_mode.upper()}</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1068,6 +1198,9 @@ if uploaded is not None:
 
     if ext in IMAGE_TYPES:
         source_image = Image.open(source_path)
+        source_bytes = source_path.read_bytes()
+        fingerprint_report = inspect_image_fingerprints(source_bytes, uploaded.name)
+
         detected = detect_watermark_box(source_image)
         x0, y0, sz = detected["x"], detected["y"], detected["size"]
         x1, y1 = x0 + sz, y0 + sz
@@ -1087,6 +1220,41 @@ if uploaded is not None:
                 """,
                 unsafe_allow_html=True,
             )
+
+            # Provenance & Fingerprint Badges
+            audit_badges_html = []
+            if fingerprint_report.get("has_c2pa"):
+                audit_badges_html.append('<span class="drop-chip" style="color:#FF4D4D; border-color:rgba(255,77,77,0.5); background:rgba(255,77,77,0.12); font-weight:700;">🔴 C2PA MANIFEST DETECTED</span>')
+            if fingerprint_report.get("has_ai_prompt"):
+                audit_badges_html.append('<span class="drop-chip" style="color:var(--amber); border-color:var(--amber-border); background:var(--amber-dim); font-weight:700;">🟠 AI PROMPT EMBEDDED</span>')
+            if fingerprint_report.get("has_exif"):
+                audit_badges_html.append('<span class="drop-chip" style="color:var(--cyan); border-color:var(--cyan-border); background:var(--cyan-dim); font-weight:700;">🔵 EXIF / METADATA</span>')
+            if fingerprint_report.get("has_gps"):
+                audit_badges_html.append('<span class="drop-chip" style="color:#FF7452; border-color:rgba(255,116,82,0.4); background:rgba(255,116,82,0.1); font-weight:700;">📍 GPS LOCATION</span>')
+            if fingerprint_report.get("is_clean"):
+                audit_badges_html.append('<span class="drop-chip" style="color:#22C55E; border-color:rgba(34,197,94,0.4); background:rgba(34,197,94,0.1); font-weight:700;">🟢 CLEAN CONTAINER</span>')
+
+            if audit_badges_html:
+                st.markdown(f'<div class="drop-chips" style="margin-top:0.4rem; margin-bottom:0.8rem;">{"".join(audit_badges_html)}</div>', unsafe_allow_html=True)
+
+            if fingerprint_report.get("finding_count", 0) > 0:
+                with st.expander(f"🔍 Container Fingerprint Audit ({fingerprint_report['finding_count']} metadata items)", expanded=False):
+                    for item in fingerprint_report["findings"]:
+                        sev_color = {"critical": "#FF4D4D", "high": "#FF7452", "medium": "#E8A33D", "low": "#2FD3E1"}.get(item.get("severity"), "#9B9BAA")
+                        preview_block = f'<div style="font-family:monospace; font-size:0.72rem; color:#A0A0B0; background:#0B0B0D; padding:0.3rem 0.5rem; border-radius:4px; margin-top:0.3rem; word-break:break-all;">{item["value_preview"]}</div>' if item.get("value_preview") else ""
+                        st.markdown(
+                            f"""
+                            <div style="background:#141418; border-left:3px solid {sev_color}; padding:0.6rem 0.9rem; margin-bottom:0.5rem; border-radius:4px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <strong style="color:#FFFFFF; font-size:0.85rem;">{item['name']}</strong>
+                                    <span style="font-family:'JetBrains Mono', monospace; font-size:0.68rem; color:{sev_color}; font-weight:700;">{item.get('severity', '').upper()}</span>
+                                </div>
+                                <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.2rem;">{item.get('detail', '')}</div>
+                                {preview_block}
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
             # ROI overlay bar
             st.markdown(
@@ -1119,14 +1287,15 @@ if uploaded is not None:
                             • <strong>Dimensions:</strong> {source_image.width} × {source_image.height}px<br>
                             • <strong>Mark Detected:</strong> <span style="color:var(--amber); font-weight:700;">{score_pct}%</span> ({preset_name})<br>
                             • <strong>ROI Box:</strong> [{x0}, {y0}, {x1}, {y1}]<br>
-                            • <strong>Engine:</strong> {method.title()} Mode
+                            • <strong>Engine:</strong> {method.title()} Mode<br>
+                            • <strong>SynthID Scrub:</strong> <span style="color:var(--cyan); font-weight:700;">{synthid_mode.upper()}</span>
                         </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
                 if ui_button("⚡ Process image", type="primary"):
-                    with st.spinner("Restoring pixels on local core..."):
+                    with st.spinner("Restoring pixels and scrubbing fingerprints..."):
                         t0 = time.perf_counter()
                         cleaned = remove_watermark(
                             source_image,
@@ -1134,11 +1303,15 @@ if uploaded is not None:
                             size_scale=size_scale,
                             method=method,
                             box=detected,
+                            synthid_mode=synthid_mode,
                         )
+                        cleaned_bytes = image_download(cleaned, synthid_mode=synthid_mode)
                         duration_ms = max(1, round((time.perf_counter() - t0) * 1000))
                     st.session_state["cleaned_image"] = cleaned
+                    st.session_state["cleaned_image_bytes"] = cleaned_bytes
                     st.session_state["last_duration_ms"] = duration_ms
                     st.session_state["last_box"] = detected
+                    st.session_state["last_synthid_mode"] = synthid_mode
                     app_rerun()
 
         # When side-by-side is coming: Step 03 source preview is omitted so source appears ONLY ONCE
@@ -1156,6 +1329,24 @@ if uploaded is not None:
                 """,
                 unsafe_allow_html=True,
             )
+
+            if st.session_state.get("last_synthid_mode", "none") != "none":
+                s_mode = st.session_state["last_synthid_mode"].upper()
+                st.markdown(
+                    f"""
+                    <div class="roi-pill-bar" style="margin-bottom:1rem; border-color:rgba(47, 211, 225, 0.4);">
+                        <div class="roi-coord-tag">
+                            <span class="dot-cyan"></span>
+                            <span style="color:var(--cyan); font-weight:700;">PROVENANCE SANITIZED</span>
+                            <span style="color:var(--text-muted); font-size:0.72rem; margin-left:0.4rem;">({s_mode} MODE)</span>
+                        </div>
+                        <div class="roi-mark-detected" style="background:rgba(47, 211, 225, 0.15); border-color:rgba(47, 211, 225, 0.4); color:var(--cyan);">
+                            <span>C2PA STRIPPED · SYNTHID NEUTRALIZED</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             # Inspection Mode Switcher
             view_mode = st.radio(
@@ -1210,8 +1401,8 @@ if uploaded is not None:
                     st.markdown(
                         """
                         <div class="compare-header">
-                            <span class="compare-header-title">ZOOM CROP · SOURCE MARK</span>
-                            <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--amber); font-weight:700;">HIGH MAGNIFICATION</span>
+                            <span class="compare-header-title">ZOOM CROP · WATERMARK OVERLAY</span>
+                            <span style="font-family:'JetBrains Mono', monospace; font-size:0.65rem; color:var(--amber); font-weight:700;">CORNER REGION</span>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -1272,9 +1463,10 @@ if uploaded is not None:
             st.markdown('<div style="height:0.8rem;"></div>', unsafe_allow_html=True)
             col_iact1, col_iact2 = st.columns([1.1, 0.9], gap="medium")
             with col_iact1:
+                cleaned_bytes = st.session_state.get("cleaned_image_bytes", image_download(cleaned, synthid_mode=synthid_mode))
                 ui_download_button(
                     "⬇ Download Cleaned PNG",
-                    image_download(cleaned),
+                    cleaned_bytes,
                     f"clean_{Path(uploaded.name).stem}.png",
                     "image/png",
                 )
@@ -1288,11 +1480,15 @@ if uploaded is not None:
                             size_scale=size_scale,
                             method=method,
                             box=detected,
+                            synthid_mode=synthid_mode,
                         )
+                        cleaned_bytes = image_download(cleaned, synthid_mode=synthid_mode)
                         duration_ms = max(1, round((time.perf_counter() - t0) * 1000))
                     st.session_state["cleaned_image"] = cleaned
+                    st.session_state["cleaned_image_bytes"] = cleaned_bytes
                     st.session_state["last_duration_ms"] = duration_ms
                     st.session_state["last_box"] = detected
+                    st.session_state["last_synthid_mode"] = synthid_mode
                     app_rerun()
 
     else:  # Video Pipeline
@@ -1313,7 +1509,7 @@ if uploaded is not None:
                 mask_asset = ASSET_DIR / "bg_96.png"
                 if not mask_asset.exists():
                     mask_asset = APP_DIR / "assets" / "bg_96.png"
-                remove_watermark_from_video(
+                result_box = remove_watermark_from_video(
                     source_path,
                     output_path,
                     mask_path=mask_asset,
@@ -1329,6 +1525,8 @@ if uploaded is not None:
             cleaned_bytes = output_path.read_bytes()
             st.session_state["cleaned_video_bytes"] = cleaned_bytes
             st.session_state["cleaned_video_duration"] = duration_s
+            if result_box:
+                st.session_state["last_video_box"] = result_box
             app_rerun()
 
         # 03 / SOURCE VIDEO PREVIEW: Only shown before processing so source is NOT shown twice.
@@ -1377,6 +1575,26 @@ if uploaded is not None:
                 """,
                 unsafe_allow_html=True,
             )
+
+            if "last_video_box" in st.session_state:
+                vbox = st.session_state["last_video_box"]
+                v_preset = vbox.get("preset", "Veo Inset").replace("-", " ").replace("_", " ").title()
+                v_score = int(vbox.get("score", 0.0) * 100)
+                st.markdown(
+                    f"""
+                    <div class="roi-pill-bar" style="margin-bottom:1rem;">
+                        <div class="roi-coord-tag">
+                            <span class="dot-cyan"></span>
+                            <span>DETECTED BOX: [{vbox.get('x',0)}, {vbox.get('y',0)}, {vbox.get('x',0)+vbox.get('width', vbox.get('size',0))}, {vbox.get('y',0)+vbox.get('height', vbox.get('size',0))}]</span>
+                            <span style="color:var(--text-muted); font-size:0.68rem; margin-left:0.4rem;">({v_preset})</span>
+                        </div>
+                        <div class="roi-mark-detected">
+                            <span>MATCH CONFIDENCE: {v_score}%</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             col_v1, col_v2 = st.columns(2, gap="medium")
             with col_v1:
                 st.markdown(
@@ -1420,12 +1638,12 @@ if uploaded is not None:
 SEO_KNOWLEDGE_HTML = """<section class="seo-section" aria-label="Technical Guide and FAQ">
 <div class="seo-title">
 <span style="color:var(--primary);">✦</span> 
-<span>HOW IT WORKS · PIXEL RECONSTRUCTION VS BLUR INPAINTING</span>
+<span>HOW IT WORKS · PIXEL RECONSTRUCTION & SYNTHID DISRUPTION</span>
 </div>
 <div class="seo-subtitle">
 Most generic watermark tools rely on heavy neural diffusion inpainting that smears background textures and leaves visible blur circles. 
-<strong>DeveloperOS Cleanroom</strong> utilizes mathematical logo inverse modeling, multi-frame keyframe consensus, and bi-harmonic inpainting 
-to restore pristine pixel values without loss of clarity or audio tracks.
+<strong>DeveloperOS Watermark Studio</strong> utilizes mathematical logo inverse modeling, multi-frame keyframe consensus, bi-harmonic inpainting, 
+and sub-LSB spatial frequency phase scrambling to restore pristine pixel values, disrupt DeepMind SynthID, and strip C2PA manifests without loss of clarity or audio tracks.
 </div>
 
 <div class="seo-grid">
@@ -1445,6 +1663,14 @@ to restore pristine pixel values without loss of clarity or audio tracks.
 <h3>04 / 100% Private & Air-Gapped</h3>
 <p>Processing executes strictly in temporary memory within your browser session. Files are never stored on external databases or sent to third-party AI APIs.</p>
 </div>
+<div class="seo-card">
+<h3>05 / Google SynthID Disruption</h3>
+<p>DeepMind SynthID embeds imperceptible pseudo-random frequency perturbations. Nuclear mode applies 0.997 Lanczos rescaling, 2px border uncoupling, and micro-dither to scramble sub-LSB phase synchronization.</p>
+</div>
+<div class="seo-card">
+<h3>06 / C2PA & Provenance Stripping</h3>
+<p>Performs byte-level container chunk walking (PNG caBX chunks, JPEG APP11 JUMBF segments) to purge Content Credentials, AI generation prompts, and EXIF/GPS tracking while leaving pixels bit-identical in Safe mode.</p>
+</div>
 </div>
 
 <div class="seo-title" style="margin-top:2.2rem;">
@@ -1452,7 +1678,7 @@ to restore pristine pixel values without loss of clarity or audio tracks.
 <span>TECHNICAL SPECIFICATIONS & PRESETS MATRIX</span>
 </div>
 <div class="seo-subtitle">
-Engineered for high-throughput video pipelines and creator workflows.
+Engineered for high-throughput video pipelines, creator workflows, and forensic image sanitization.
 </div>
 
 <div style="overflow-x:auto; margin-bottom: 2rem;">
@@ -1461,8 +1687,8 @@ Engineered for high-throughput video pipelines and creator workflows.
 <tr style="background:#1B1B24; border-bottom:1px solid #282836; color:var(--text-main);">
 <th style="padding:0.75rem 1rem;">PIPELINE ASSET</th>
 <th style="padding:0.75rem 1rem;">SUPPORTED FORMATS</th>
-<th style="padding:0.75rem 1rem;">DETECTION STRATEGY</th>
-<th style="padding:0.75rem 1rem;">AUDIO PIPELINE</th>
+<th style="padding:0.75rem 1rem;">DETECTION & CLEANING STRATEGY</th>
+<th style="padding:0.75rem 1rem;">PIXEL & AUDIO INTEGRITY</th>
 <th style="padding:0.75rem 1rem;">MAX SIZE</th>
 </tr>
 </thead>
@@ -1470,15 +1696,29 @@ Engineered for high-throughput video pipelines and creator workflows.
 <tr style="border-bottom:1px solid #1E1E28;">
 <td style="padding:0.75rem 1rem; color:var(--cyan); font-weight:700;">Google Veo Video</td>
 <td style="padding:0.75rem 1rem;">MP4, MOV, MKV, WEBM</td>
-<td style="padding:0.75rem 1rem;">Multi-frame adaptive sampling</td>
-<td style="padding:0.75rem 1rem; color:#4ade80;">Direct stream copy (Lossless)</td>
+<td style="padding:0.75rem 1rem;">Multi-frame adaptive sampling & discrete Veo catalogs</td>
+<td style="padding:0.75rem 1rem; color:#4ade80;">Direct stream copy (Lossless Audio)</td>
+<td style="padding:0.75rem 1rem;">100 MB</td>
+</tr>
+<tr style="border-bottom:1px solid #1E1E28;">
+<td style="padding:0.75rem 1rem; color:var(--primary-hover); font-weight:700;">Google Gemini Image</td>
+<td style="padding:0.75rem 1rem;">PNG, JPG, JPEG, WEBP</td>
+<td style="padding:0.75rem 1rem;">Discrete 0.5k-4k catalogs + bi-harmonic inpainting</td>
+<td style="padding:0.75rem 1rem; color:#4ade80;">Sub-pixel reconstruction (No halo)</td>
+<td style="padding:0.75rem 1rem;">100 MB</td>
+</tr>
+<tr style="border-bottom:1px solid #1E1E28;">
+<td style="padding:0.75rem 1rem; color:var(--amber); font-weight:700;">Google SynthID Disrupter</td>
+<td style="padding:0.75rem 1rem;">PNG, JPG, WEBP</td>
+<td style="padding:0.75rem 1rem;">0.997 Lanczos scale, 2px border crop, spatial frequency dither</td>
+<td style="padding:0.75rem 1rem; color:#E8A33D;">Visually imperceptible perturbation</td>
 <td style="padding:0.75rem 1rem;">100 MB</td>
 </tr>
 <tr>
-<td style="padding:0.75rem 1rem; color:var(--primary-hover); font-weight:700;">Google Gemini Image</td>
-<td style="padding:0.75rem 1rem;">PNG, JPG, JPEG, WEBP</td>
-<td style="padding:0.75rem 1rem;">Sub-pixel corner template match</td>
-<td style="padding:0.75rem 1rem; color:var(--text-muted);">N/A (Visual)</td>
+<td style="padding:0.75rem 1rem; color:#2FD3E1; font-weight:700;">C2PA & Provenance Cleaner</td>
+<td style="padding:0.75rem 1rem;">PNG, JPG, JPEG</td>
+<td style="padding:0.75rem 1rem;">Byte-level chunk walker (caBX, JUMBF, A1111, ComfyUI, EXIF)</td>
+<td style="padding:0.75rem 1rem; color:#4ade80;">100% Bit-Identical Pixels (Safe Tier)</td>
 <td style="padding:0.75rem 1rem;">100 MB</td>
 </tr>
 </tbody>
@@ -1490,41 +1730,48 @@ Engineered for high-throughput video pipelines and creator workflows.
 <span>FREQUENTLY ASKED QUESTIONS (FAQ)</span>
 </div>
 <div class="seo-subtitle">
-Direct answers to common queries regarding Google Gemini & Veo watermark removal.
+Direct answers to common queries regarding Google Gemini & Veo watermark removal, SynthID disruption, and C2PA sanitization.
 </div>
 
 <details class="faq-accordion">
 <summary>How do I remove the watermark from Google Gemini images? <span>▾</span></summary>
 <div class="faq-body">
-Simply upload your Gemini-generated image (PNG, JPG, or WEBP) to the DeveloperOS Cleanroom workbench above. The engine automatically locates the sparkle logo coordinates and applies pixel-accurate bi-harmonic reconstruction to eliminate the mark without blurring the surrounding artwork.
+Upload your Gemini-generated image (PNG, JPG, WEBP) to DeveloperOS Watermark Studio. The engine automatically detects the sparkle logo coordinates from discrete resolution catalogs and reconstructs the pixels with zero blurring using bi-harmonic inpainting.
 </div>
 </details>
 
 <details class="faq-accordion">
-<summary>Does this tool remove the watermark from Google Veo AI videos? <span>▾</span></summary>
+<summary>Can it remove watermarks from Google Veo AI videos without losing audio? <span>▾</span></summary>
 <div class="faq-body">
-Yes. The pipeline is specifically tuned for Google Veo AI clips (both vertical 9:16 reels and widescreen 16:9 videos). It automatically samples video keyframes to establish consensus coordinates for the sparkle logo and applies inpainting frame-by-frame.
+Yes! The pipeline samples keyframes across the video to establish consensus coordinates for the sparkle or Veo text logo, performs frame-by-frame bi-harmonic reconstruction with safety dilation, and losslessly remuxes the original audio track using FFmpeg stream copy.
 </div>
 </details>
 
 <details class="faq-accordion">
-<summary>Will my video lose audio quality or sound sync? <span>▾</span></summary>
+<summary>What is Google SynthID and how does DeveloperOS disrupt it? <span>▾</span></summary>
 <div class="faq-body">
-No. Unlike other tools that discard audio or re-encode sound with quality loss, DeveloperOS Cleanroom uses FFmpeg stream copying to pass through original AAC, MP3, and PCM audio tracks untouched.
+Google SynthID embeds imperceptible pseudo-random frequency perturbations into the latent generation process. DeveloperOS's Nuclear mode scrambles sub-LSB spatial frequency phase alignment via asymmetric Lanczos rescaling (0.997), a 2px border uncoupling crop, subtle channel bias, and spatial frequency micro-dithering.
 </div>
 </details>
 
 <details class="faq-accordion">
-<summary>Is DeveloperOS Gemini Watermark Remover free to use? <span>▾</span></summary>
+<summary>What is C2PA Content Credentials and how does DeveloperOS remove it? <span>▾</span></summary>
 <div class="faq-body">
-Yes, this tool is 100% free and open-source under the MIT license. There are no subscriptions, watermarks added by our tool, or hidden credit gates.
+C2PA (Coalition for Content Provenance and Authenticity) embeds provenance metadata manifests into image containers (caBX chunks in PNG and APP11 JUMBF segments in JPEG). DeveloperOS parses containers at the byte level and losslessly strips all provenance, AI prompts, and EXIF tracking while keeping pixels bit-identical.
 </div>
 </details>
 
 <details class="faq-accordion">
-<summary>Is my uploaded content private and secure? <span>▾</span></summary>
+<summary>What are the differences between Safe, Paranoid, and Nuclear cleaning modes? <span>▾</span></summary>
 <div class="faq-body">
-Yes, completely. All video and image processing occurs in temporary air-gapped system memory for your active browser session. Once your session ends, the temporary data is deleted immediately. We do not store, log, or train models on user content.
+Safe mode is 100% lossless and bit-identical, removing C2PA manifests, AI generation prompts, and EXIF/GPS data without altering a single pixel. Paranoid mode adds sRGB profile standardization and micro-dithering to neutralize camera PRNU and JPEG quantization fingerprints. Nuclear mode actively disrupts SynthID and latent watermarks via spatial-frequency phase scrambling.
+</div>
+</details>
+
+<details class="faq-accordion">
+<summary>Is DeveloperOS Gemini Watermark Remover free and private? <span>▾</span></summary>
+<div class="faq-body">
+Yes, it is 100% free and open-source under the MIT license. All media processing happens locally in isolated temporary memory within your session. Files are never stored on cloud servers or sent to external AI APIs.
 </div>
 </details>
 </section>"""

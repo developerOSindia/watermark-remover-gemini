@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import shutil
 import subprocess
 import tempfile
@@ -11,6 +12,15 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
+
+try:
+    from fingerprint_cleaner import inspect_image_fingerprints, clean_image_fingerprints
+except ImportError:
+    try:
+        from .fingerprint_cleaner import inspect_image_fingerprints, clean_image_fingerprints
+    except ImportError:
+        inspect_image_fingerprints = None
+        clean_image_fingerprints = None
 
 
 def get_ffmpeg_binary() -> str | None:
@@ -54,13 +64,20 @@ def resolve_box(
     offset_y: int = 0,
 ) -> dict[str, int]:
     size = max(8, min(round(base["size"] * size_scale), width, height))
-    return {
+    res = {
         "size": size,
         "x": max(0, min(base["x"] + offset_x, width - size)),
         "y": max(0, min(base["y"] + offset_y, height - size)),
         "width": size,
         "height": size,
     }
+    if "preset" in base:
+        res["preset"] = base["preset"]
+    if "score" in base:
+        res["score"] = base["score"]
+    if "type" in base:
+        res["type"] = base["type"]
+    return res
 
 
 def alpha_map(mask: Image.Image, size: int, gain: float) -> list[float]:
@@ -68,58 +85,396 @@ def alpha_map(mask: Image.Image, size: int, gain: float) -> list[float]:
     return [min(max(pixel) / 255.0 * gain, MAX_ALPHA) for pixel in resized.getdata()]
 
 
+import base64
+
+# Official Gemini image generation resolution catalog (geminiSizeCatalog.js)
+# Discrete resolution mapping provides exact Bayesian priors over generic aspect ratio equations
+OFFICIAL_GEMINI_IMAGE_CATALOG: dict[tuple[int, int], dict[str, int]] = {
+    # 0.5K Tier (size: 48, margin: 32)
+    (512, 512): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (256, 1024): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (192, 1536): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (424, 632): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (632, 424): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (448, 600): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (1024, 256): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (600, 448): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (464, 576): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (576, 464): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (1536, 192): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (384, 688): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (688, 384): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    (792, 168): {"size": 48, "margin_right": 32, "margin_bottom": 32, "tier": "0.5k"},
+    # 1K Tier (size: 96, margin: 64)
+    (1024, 1024): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (512, 2048): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (384, 3072): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (848, 1264): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (1264, 848): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (896, 1200): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (2048, 512): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (1200, 896): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (928, 1152): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (1152, 928): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (3072, 384): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (768, 1376): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (1376, 768): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (1408, 768): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    (1584, 672): {"size": 96, "margin_right": 64, "margin_bottom": 64, "tier": "1k"},
+    # 2K Tier (size: 96, margin: 192 or 64)
+    (2048, 2048): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (1024, 4096): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (768, 6144): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (1696, 2528): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (2528, 1696): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (1792, 2400): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (4096, 1024): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (2400, 1792): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (1856, 2304): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (2304, 1856): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (6144, 768): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (1536, 2752): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (2752, 1536): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (3168, 1344): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    (2816, 1536): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "2k"},
+    # 4K Tier
+    (4096, 4096): {"size": 96, "margin_right": 192, "margin_bottom": 192, "tier": "4k"},
+}
+
+# Official Google Veo text watermark templates (veoTextWatermarkTemplates.js)
+RAW_VEO_TEXT_BASE64: dict[str, tuple[int, int, str]] = {
+    "veo-text-23x10": (
+        23,
+        10,
+        "AQoHAAAAAgsEAAAAAAAAAAAAAAAAAAAKV0AHAAEYXCMDAAAAAAAAAAAAAAAAAAY+YQ4ABjpdDwIHCQYAAAABBgkHAgAAAyVmJwMNXEkLGD9MOA4BARQ7SkIaBQAADFFCCiJnKBxYST5bTwsOWlxASV8nAwAGO18WSF0VQ1okHC9jIS5iIQgQSk0JAAASZTVfOBBUZ05KS1AfOVMLAAUzWgsAAApWY2sYCUNWGg8UGwotYBYGD0hRCQAABTRrVgoCHlxINU5QDxRcXDpMYisEAAAADEAmBAAEHEdOPhoDAxlET0wjBgA=",
+    ),
+    "veo-text-68x30": (
+        68,
+        30,
+        "AgEABgQEBgIBAQICAQICAQECAgIABgQFAwACAgEBAgMBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAAl1en15IwIBAgMCAQEBAQECAgx7foF7KAMCAQECAgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQIAAUZ/fn9fAgECAgIBAgICAgIDNH2AgG4FAwIBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQICAgICAgICAQEBAQEBAQECHYCAgHcFAwIDAgICAwMDAgNhfX+BTwMEAgEBAQECAgEBAgEBAQEBAQEBAQEBAQEBAQEBAgICAgICAgIBAQEBAQEBAQECdoCBgDECAwMCAgICAwEBEYGAgn8YAgICAQEBAQICAgEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgEBAQIBAQEBAQFLfoB+XgIDAwICAgICAgMvgYF/bwQBAgEBAQECAgIBAQEBAQEBAQEBAQEBAQAAAQEBAQECAgIBAgEBAQEBAgEBAQEBASJ/fn91DQICAgICAgICBVyAf344AgIBAQEBAQIDAwMCAgEBAQEBAQEBAQEBAQEBAQEBAgICAQEAAAABAQEBAQIBAQEBBWx/f4AvAwICAgIDAwMQeH9/exQBAgECAQEBAggMCwgCAQEBAQEBAQIBAQEBAQECAgMHCAgGAgEBAQEBAQECAgEBAQEDQIGBgV8EAQEBAgICA0F/gIBeAwECAgICDEBvf39/gXFSFgUCAgICAwIBAQIBBRREb4GCgIJwVBQEAQEBAQECAQEBAQMUfoGAfg0CAQECAgIFbX9/fy8DAgIDBDF1fX+BgYCBgIB7QAUDAwMDAgEBAgM4dX+Bf4KDgYKBe0EFAgEBAgIBAQECAwZggIGBOAQBAgICBRx/foB9DAECAQdAf4CBf4B/f3+AgIGAQAQCAwMCAgMFUH6CgoGAgH+AgIGBf2gNAwICAwEBAQEBATh/gIFeAgEBAgEETX+BflAFAwMDKXt/gH1hMhgZMV9/gYF+IwMCAwICA0B+gYB/eFM7OlFwgIB/fVEDAgICAQEBAQMDC3yBg38RAgIDAwduf4B8KgUDAwVtgH9+QQQDAgMDBUB9gH9uBgIDAwMUfIB+fkwMBQMCBQ0+gH+CfikDAgIBAQEBAwIJX4KCgDoCAwMEInuCgG0IAgIBMH5/f1IEAgECAgIBAlF/gX0jAwMDBVt9gIBSBAEBAQAEAwhMf4GAZQcDAgEBAQECAgcwgoJ/YgMCAgNRgYCATwQEAwNef398FAMEAwQEAwMDJn6Af0cDAwMTfH6AahUCAwIDAwICAgx0gYB/IgECAQEBAQICAg17gYJ+BAMDBHeCgIEaBAQDB32BgHZAPz0+Pj8+Pj5GfoOBVgMDAyl/f35RAwIBAwMCAwEDBUCAgn44BAIBAQEBAgECA1p/gIA3AgMzgIGAbQICBAIaf4GAgoCAgoGBgYGBgIGBgX9wBAICPX9/fzEDAgECAgIDAgICKYCCfk4EAgEBAAACAgICJX+CgVwEBFeCgn8zAQEDAh5+gYGAf35/fn9/f39+fn9+fm0GAwNBfoCAMQIBAQICAgICAQEjgIF+UQMCAQEAAQEBAgIGdIKDfg4MfIGBehUBAQICGX6AgWAzMTExMTExMjEwMS4wKgQCAz5/gYE1AwEBAgICAgICAiaAgX5OAgIBAQEBAgICAwVJf4F/NTB9gYBgBAICAwIOfYCCXQYDBAICAgIDAgECAwQEAgICNICCg0cEAQECAgICAgIENIGCf0YCAgEBAQEBAQICAyKAgoFgXX2BfTECAgICAwRugIF8DgMDAQECAwQDAwIDAgMCAgESfoOAdgYBAQIDAgEBAgdvgoJ8IAMEAQEBAQEBAQIBBXd/gH5+fn99CwECAgICBEB/f3xIBQMCAgICAgMTXTkVAwICAwZcg4N9QwIBAQIBAwECOHuAgWsJAwIBAQEBAQEBAQEEQn6Bf4B/f08EAQICAgMCFHWBgX1DBgMCBAUGFW5/fG0hAwICAyh+gYB9PQQFAwMEBC9+g4B+PwQCAgEBAQEBAQICAQIkgIKBgIB8JgICAgIDAwIFOn+CgH5sLxsQFkJ2gH6AbgQCAgIDBGGDgYB7bDogIjFdfIB/gm4EAQIBAQEBAQEBAQEBAgdcgoCCgGwOAgECAgICAwIJR4CAf4GBgYGBgYB+fmcVAQIBAQICDm19gIB/gX6AgX+AgH1rEwMCAgEBAQAAAQEBAQIBAz2Af4B+TQoCAgICAgICAQEJQX1/gIGAgIGBf3xnFgQDAgICAgMFC1B8f4CBgYGBgYB9XhQDAgICAQEBAAABAQEBAQIBDV9fX14UAgIBAgICAgEBAQIFElB7fH+Af3xuPwsCAgICAgICAgUDBzJifn9+foB9YzAFAgICAgIBAQEAAAEBAQECAgIBAwMDAwEBAQECAQICAgECAgIDBAYlKy4rEwUEAgICAgICAgEBAgIDAwMNIysyIAsEAgIDAwICAgIBAQABAQEBAQEBAQABAQEBAQEBAQICAQICAgECAgECAQIDAwMCAgEBAgICAgICAgICAgEBAgEBAQEBAQEBAQEBAQEBAgEBAQEBAQEBAQEBAQEBAQEBAQEBAgICAgICAgICAgMCAgICAgIBAQEBAgEBAQEBAgEBAQEBAgICAgICAgIBAQICAQEBAQEB",
+    ),
+    "veo-text-99x43": (
+        99,
+        43,
+        "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",
+    ),
+}
+
+
+def adaptive_video_offset(width: int, height: int) -> int:
+    scale_ratio = max(0.3, min(1.5, min(width, height) / 720))
+    return round(-24 * scale_ratio)
+
+
+def veo_watermark_info(width: int, height: int) -> dict[str, int]:
+    base = min(width, height)
+    size = max(24, min(round(base / 15), base))
+    margin = round(base / 10)
+    return {
+        "size": size,
+        "x": max(0, width - margin - size),
+        "y": max(0, height - margin - size),
+        "width": size,
+        "height": size,
+    }
+
+
+def resolve_video_watermark_candidates(width: int, height: int) -> list[dict]:
+    """Resolve discrete candidates from the official Google Veo video catalog (videoWatermarkCatalog.js)."""
+    raw_candidates = []
+
+    if width == 1080 and height == 1920:
+        raw_candidates.extend(
+            [
+                {
+                    "id": "veo-1080x1920-portrait-inset-72",
+                    "name": "Veo 1080p Portrait Inset (Margin 144)",
+                    "size": 72,
+                    "marginRight": 144,
+                    "marginBottom": 144,
+                    "prior": 1.30,
+                },
+                {
+                    "id": "veo-1080x1920-portrait-standard-72",
+                    "name": "Veo 1080p Portrait Standard (Margin 108)",
+                    "size": 72,
+                    "marginRight": 108,
+                    "marginBottom": 108,
+                    "prior": 1.15,
+                },
+            ]
+        )
+    elif width == 1920 and height == 1080:
+        raw_candidates.extend(
+            [
+                {
+                    "id": "veo-1920x1080-landscape-standard-72",
+                    "name": "Veo 1080p Landscape Standard (Margin 108)",
+                    "size": 72,
+                    "marginRight": 108,
+                    "marginBottom": 108,
+                    "prior": 1.30,
+                },
+                {
+                    "id": "veo-1920x1080-landscape-inset-72",
+                    "name": "Veo 1080p Landscape Inset (Margin 144)",
+                    "size": 72,
+                    "marginRight": 144,
+                    "marginBottom": 144,
+                    "prior": 1.15,
+                },
+            ]
+        )
+    elif width == 1280 and height == 720:
+        raw_candidates.extend(
+            [
+                {
+                    "id": "veo-720p-inset-48",
+                    "name": "Veo 720p Inset (Margin 96)",
+                    "size": 48,
+                    "marginRight": 96,
+                    "marginBottom": 96,
+                    "prior": 1.30,
+                },
+                {
+                    "id": "veo-720p-standard-48",
+                    "name": "Veo 720p Standard (Margin 72)",
+                    "size": 48,
+                    "marginRight": 72,
+                    "marginBottom": 72,
+                    "prior": 1.20,
+                },
+                {
+                    "id": "veo-720p-compact-44",
+                    "name": "Veo 720p Compact (Margin 29/40)",
+                    "size": 44,
+                    "marginRight": 29,
+                    "marginBottom": 40,
+                    "prior": 1.10,
+                },
+            ]
+        )
+    elif width == 720 and height == 1280:
+        raw_candidates.extend(
+            [
+                {
+                    "id": "veo-720x1280-portrait-inset-48",
+                    "name": "Veo 720x1280 Portrait Inset (Margin 96)",
+                    "size": 48,
+                    "marginRight": 96,
+                    "marginBottom": 96,
+                    "prior": 1.30,
+                },
+                {
+                    "id": "veo-720x1280-portrait-standard-48",
+                    "name": "Veo 720x1280 Portrait Standard (Margin 72)",
+                    "size": 48,
+                    "marginRight": 72,
+                    "marginBottom": 72,
+                    "prior": 1.20,
+                },
+                {
+                    "id": "veo-720x1280-compact-44",
+                    "name": "Veo 720x1280 Compact (Margin 29/40)",
+                    "size": 44,
+                    "marginRight": 29,
+                    "marginBottom": 40,
+                    "prior": 1.10,
+                },
+                {
+                    "id": "veo-720x1280-animated-24",
+                    "name": "Veo 720x1280 Animated (Margin 48)",
+                    "size": 24,
+                    "marginRight": 48,
+                    "marginBottom": 48,
+                    "prior": 1.05,
+                },
+            ]
+        )
+    else:
+        # Projected candidates from 1920x1080 reference
+        scale = min(width / 1920.0, height / 1080.0)
+        s = max(24, min(round(72 * scale), min(width, height) - 8))
+        m_std = max(8, round(108 * scale))
+        m_ins = max(8, round(144 * scale))
+        raw_candidates.extend(
+            [
+                {
+                    "id": "veo-projected-standard",
+                    "name": f"Veo Projected Standard ({s}px, m={m_std})",
+                    "size": s,
+                    "marginRight": m_std,
+                    "marginBottom": m_std,
+                    "prior": 1.15,
+                },
+                {
+                    "id": "veo-projected-inset",
+                    "name": f"Veo Projected Inset ({s}px, m={m_ins})",
+                    "size": s,
+                    "marginRight": m_ins,
+                    "marginBottom": m_ins,
+                    "prior": 1.10,
+                },
+            ]
+        )
+
+    formatted = []
+    for c in raw_candidates:
+        sz = c["size"]
+        mr = c["marginRight"]
+        mb = c["marginBottom"]
+        cx = max(0, width - mr - sz)
+        cy = max(0, height - mb - sz)
+        formatted.append(
+            {
+                "presetKey": c["id"],
+                "name": c["name"],
+                "baseSize": sz,
+                "calcPos": lambda s, _x=cx, _y=cy, _sz=sz: (
+                    max(0, min(width - s, _x + (_sz - s) // 2)),
+                    max(0, min(height - s, _y + (_sz - s) // 2)),
+                ),
+                "gain": 1.0,
+                "prior": c["prior"],
+            }
+        )
+    return formatted
+
+
+def detect_veo_text_watermark(image: Image.Image | np.ndarray) -> dict | None:
+    """Detect the Google Veo text watermark ('Veo' logo) in bottom right corner."""
+    if isinstance(image, Image.Image):
+        gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    else:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    height, width = gray.shape
+
+    best_match = None
+    best_score = -1.0
+
+    for name, (tw, th, b64) in RAW_VEO_TEXT_BASE64.items():
+        raw = base64.b64decode(b64)
+        tpl = np.frombuffer(raw, dtype=np.uint8).reshape((th, tw))
+        if name == "veo-text-23x10":
+            mr, mb = 15, 16
+        elif name == "veo-text-68x30":
+            mr, mb = 44, 48
+        else:
+            mr, mb = 64, 68
+
+        cx = max(0, width - mr - tw)
+        cy = max(0, height - mb - th)
+
+        win_x0 = max(0, cx - 20)
+        win_y0 = max(0, cy - 20)
+        win_x1 = min(width, cx + tw + 20)
+        win_y1 = min(height, cy + th + 20)
+
+        if win_x1 - win_x0 < tw or win_y1 - win_y0 < th:
+            continue
+
+        patch = gray[win_y0:win_y1, win_x0:win_x1]
+        res = cv2.matchTemplate(patch, tpl, cv2.TM_CCOEFF_NORMED)
+        _, max_v, _, max_l = cv2.minMaxLoc(res)
+
+        if max_v > best_score and max_v >= 0.50:
+            best_score = float(max_v)
+            best_match = {
+                "x": win_x0 + max_l[0],
+                "y": win_y0 + max_l[1],
+                "width": tw,
+                "height": th,
+                "size": max(tw, th),
+                "score": float(max_v),
+                "preset": name,
+                "type": "text",
+            }
+
+    return best_match
+
+
 def get_image_layout_candidates(width: int, height: int) -> list[dict]:
-    """Candidate layout families from main.js lines 674-723."""
+    """Candidate layout families including official Gemini image catalog, Veo video catalog, and adaptive fallbacks."""
     min_dim = min(width, height)
     base_ratio = min_dim / 1536.0
     base_size = max(16, round(96 * base_ratio))
+    candidates = []
 
-    return [
-        {
-            "presetKey": "new",
-            "name": "New Gemini (Adaptive)",
-            "baseSize": base_size,
-            "calcPos": lambda s: (
-                max(0, width - max(8, round(192 * base_ratio)) - s),
-                max(0, height - max(8, round(192 * base_ratio)) - s),
-            ),
-            "gain": 0.6,
-            "prior": 1.08,
-        },
-        {
-            "presetKey": "classic",
-            "name": "Classic Corner (Adaptive)",
-            "baseSize": base_size,
-            "calcPos": lambda s: (
-                max(0, width - max(8, round(64 * base_ratio)) - s),
-                max(0, height - max(8, round(64 * base_ratio)) - s),
-            ),
-            "gain": 1.0,
-            "prior": 1.04,
-        },
-        {
-            "presetKey": "new",
-            "name": "Gemini (Fixed 96px Inset)",
-            "baseSize": 96,
-            "calcPos": lambda s: (
-                max(0, width - (192 if min_dim >= 1400 else round(128 * max(0.5, min_dim / 1024.0))) - s),
-                max(0, height - (192 if min_dim >= 1400 else round(128 * max(0.5, min_dim / 1024.0))) - s),
-            ),
-            "gain": 0.6,
-            "prior": 1.02,
-        },
-        {
-            "presetKey": "classic",
-            "name": "Classic Corner (Fixed 96px)",
-            "baseSize": 96,
-            "calcPos": lambda s: (
-                max(0, width - (64 if min_dim >= 1024 else 32) - s),
-                max(0, height - (64 if min_dim >= 1024 else 32) - s),
-            ),
-            "gain": 1.0,
-            "prior": 1.01,
-        },
-    ]
+    # 1. Official Gemini Image Generation Catalog Prior
+    cat_entry = OFFICIAL_GEMINI_IMAGE_CATALOG.get((width, height))
+    if cat_entry:
+        cat_sz = cat_entry["size"]
+        cat_mr = cat_entry["margin_right"]
+        cat_mb = cat_entry["margin_bottom"]
+        cat_x = max(0, width - cat_mr - cat_sz)
+        cat_y = max(0, height - cat_mb - cat_sz)
+        candidates.append(
+            {
+                "presetKey": f"gemini-catalog-{cat_entry['tier']}",
+                "name": f"Gemini Catalog ({cat_entry['tier'].upper()} {cat_sz}px)",
+                "baseSize": cat_sz,
+                "calcPos": lambda s, _x=cat_x, _y=cat_y, _sz=cat_sz: (
+                    max(0, min(width - s, _x + (_sz - s) // 2)),
+                    max(0, min(height - s, _y + (_sz - s) // 2)),
+                ),
+                "gain": 0.6 if cat_entry["tier"] in ("1k", "2k", "4k") else 1.0,
+                "prior": 1.35,
+            }
+        )
+
+    # 2. Discrete Video Catalog
+    candidates.extend(resolve_video_watermark_candidates(width, height))
+
+    # 3. Fallback Adaptive and Fixed Gemini Image Layouts
+    candidates.extend(
+        [
+            {
+                "presetKey": "new",
+                "name": "New Gemini (Adaptive)",
+                "baseSize": base_size,
+                "calcPos": lambda s, _w=width, _h=height, _br=base_ratio: (
+                    max(0, _w - max(8, round(192 * _br)) - s),
+                    max(0, _h - max(8, round(192 * _br)) - s),
+                ),
+                "gain": 0.6,
+                "prior": 1.08,
+            },
+            {
+                "presetKey": "classic",
+                "name": "Classic Corner (Adaptive)",
+                "baseSize": base_size,
+                "calcPos": lambda s, _w=width, _h=height, _br=base_ratio: (
+                    max(0, _w - max(8, round(64 * _br)) - s),
+                    max(0, _h - max(8, round(64 * _br)) - s),
+                ),
+                "gain": 1.0,
+                "prior": 1.04,
+            },
+            {
+                "presetKey": "new",
+                "name": "Gemini (Fixed 96px Inset)",
+                "baseSize": 96,
+                "calcPos": lambda s, _w=width, _h=height, _md=min_dim: (
+                    max(0, _w - (192 if _md >= 1400 else round(128 * max(0.5, _md / 1024.0))) - s),
+                    max(0, _h - (192 if _md >= 1400 else round(128 * max(0.5, _md / 1024.0))) - s),
+                ),
+                "gain": 0.6,
+                "prior": 1.02,
+            },
+            {
+                "presetKey": "classic",
+                "name": "Classic Corner (Fixed 96px)",
+                "baseSize": 96,
+                "calcPos": lambda s, _w=width, _h=height, _md=min_dim: (
+                    max(0, _w - (64 if _md >= 1024 else 32) - s),
+                    max(0, _h - (64 if _md >= 1024 else 32) - s),
+                ),
+                "gain": 1.0,
+                "prior": 1.01,
+            },
+        ]
+    )
+    return candidates
 
 
 def detect_watermark_box(
@@ -141,12 +496,31 @@ def detect_watermark_box(
     m48_gray = np.array(m48.convert("L"))
 
     layout_families = get_image_layout_candidates(width, height)
-    scale_pyramid = (0.55, 0.70, 0.85, 1.00, 1.15, 1.30, 1.50, 1.70)
+    if base and "x" in base and "y" in base and "size" in base:
+        bx = int(base["x"])
+        by = int(base["y"])
+        bs = int(base["size"])
+        layout_families.insert(
+            0,
+            {
+                "presetKey": base.get("preset", "base_prior"),
+                "name": "Base Prior Hint",
+                "baseSize": bs,
+                "calcPos": lambda s, _bx=bx, _by=by, _bs=bs: (
+                    max(0, min(width - s, _bx + (_bs - s) // 2)),
+                    max(0, min(height - s, _by + (_bs - s) // 2)),
+                ),
+                "gain": 1.0,
+                "prior": 1.30,
+            },
+        )
+
+    scale_pyramid = (0.75, 0.85, 0.95, 1.00, 1.05, 1.15, 1.25)
 
     best_match = None
     best_score = -1.0
 
-    # 1. Test candidate layout families from main.js
+    # 1. Test candidate layout families
     for layout in layout_families:
         for scale in scale_pyramid:
             s = max(16, min(round(layout["baseSize"] * scale), min(width, height) - 8))
@@ -170,7 +544,7 @@ def detect_watermark_box(
                     "gain": layout["gain"],
                 }
 
-    # 2. Fine-tuning (±16px position, ±10% scale) from main.js line 753
+    # 2. Fine-tuning (±24px position, ±10% scale)
     if best_match and best_match["score"] > 0.10:
         fine_sizes = {
             max(16, round(best_match["size"] * 0.90)),
@@ -186,10 +560,10 @@ def detect_watermark_box(
 
         for ts in fine_sizes:
             tpl = cv2.resize(m48_gray if ts <= 48 else m96_gray, (ts, ts), interpolation=cv2.INTER_AREA)
-            win_y0 = max(0, best_match["y"] - 16)
-            win_y1 = min(height, best_match["y"] + 16 + ts)
-            win_x0 = max(0, best_match["x"] - 16)
-            win_x1 = min(width, best_match["x"] + 16 + ts)
+            win_y0 = max(0, best_match["y"] - 24)
+            win_y1 = min(height, best_match["y"] + 24 + ts)
+            win_x0 = max(0, best_match["x"] - 24)
+            win_x1 = min(width, best_match["x"] + 24 + ts)
             if win_y1 - win_y0 >= ts and win_x1 - win_x0 >= ts:
                 sub_patch = gray[win_y0:win_y1, win_x0:win_x1]
                 res = cv2.matchTemplate(sub_patch, tpl, cv2.TM_CCOEFF_NORMED)
@@ -208,11 +582,11 @@ def detect_watermark_box(
         best_match["score"] = refined_score
 
     # 3. If layout candidates had low confidence, search the broader lower-right quadrant (for cropped images)
-    if best_score < 0.45:
+    if best_score < 0.35:
         roi = gray[int(height * 0.5) :, int(width * 0.5) :]
         rx0, ry0 = int(width * 0.5), int(height * 0.5)
         for mask_tpl, bsz in ((m48_gray, 48), (m96_gray, 96)):
-            for sc in (0.5, 0.75, 1.0, 1.25):
+            for sc in (0.75, 1.0, 1.25):
                 sz = int(round(bsz * sc))
                 if sz < 16 or sz >= roi.shape[0] - 2 or sz >= roi.shape[1] - 2:
                     continue
@@ -235,7 +609,7 @@ def detect_watermark_box(
     if best_match and best_match["score"] >= 0.35:
         return best_match
 
-    # Fallback to New Gemini Adaptive (main.js line 805)
+    # Fallback to first layout candidate (or base prior)
     fallback = layout_families[0]
     s = fallback["baseSize"]
     x, y = fallback["calcPos"](s)
@@ -246,7 +620,7 @@ def detect_watermark_box(
         "width": s,
         "height": s,
         "score": 0.0,
-        "preset": "new",
+        "preset": fallback.get("presetKey", "new"),
         "gain": fallback["gain"],
     }
 
@@ -268,6 +642,8 @@ def remove_watermark(
     offset_y: int = 0,
     method: str = "inpaint",
     box: dict[str, int] | None = None,
+    synthid_mode: str = "none",
+    strip_metadata: bool = False,
 ) -> Image.Image:
     width, height = image.size
 
@@ -285,17 +661,28 @@ def remove_watermark(
 
     if method == "inpaint":
         frame = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-        inpaint_mask = sparkle_inpaint_mask(s)
-        full_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-        full_mask[y : y + s, x : x + s] = inpaint_mask
-        cleaned = cv2.inpaint(frame, full_mask, 3, cv2.INPAINT_TELEA)
-        return Image.fromarray(cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB))
+        pad = 6
+        bx = max(0, x - pad)
+        by = max(0, y - pad)
+        bs = s + pad * 2
+        inpaint_mask = sparkle_inpaint_mask(bs, mask)
+        pad_patch = 16
+        py0 = max(0, by - pad_patch)
+        py1 = min(height, by + bs + pad_patch)
+        px0 = max(0, bx - pad_patch)
+        px1 = min(width, bx + bs + pad_patch)
+        patch = frame[py0:py1, px0:px1].copy()
+        patch_mask = np.zeros(patch.shape[:2], dtype=np.uint8)
+        patch_mask[by - py0 : by - py0 + bs, bx - px0 : bx - px0 + bs] = inpaint_mask
+        cleaned_patch = cv2.inpaint(patch, patch_mask, 5, cv2.INPAINT_TELEA)
+        frame[py0:py1, px0:px1] = cleaned_patch
+        cleaned_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     elif method == "reconstruct":
         frame = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-        inpaint_mask = sparkle_inpaint_mask(s)
+        inpaint_mask = sparkle_inpaint_mask(s, mask)
         cleaned_frame = reconstruct_rows(frame, box, inpaint_mask)
-        return Image.fromarray(cv2.cvtColor(cleaned_frame, cv2.COLOR_BGR2RGB))
+        cleaned_image = Image.fromarray(cv2.cvtColor(cleaned_frame, cv2.COLOR_BGR2RGB))
 
     else:  # math (alpha unblending)
         output = image.convert("RGBA")
@@ -316,28 +703,44 @@ def remove_watermark(
                     for channel in (r, g, b)
                 )
                 pixels[px, py] = (*restored, a)
-        return output.convert("RGB")
+        cleaned_image = output.convert("RGB")
+
+    active_mode = synthid_mode if synthid_mode in ("safe", "paranoid", "nuclear") else ("safe" if strip_metadata else None)
+    if active_mode and clean_image_fingerprints is not None:
+        buf = io.BytesIO()
+        cleaned_image.save(buf, format="PNG")
+        cleaned_bytes = clean_image_fingerprints(buf.getvalue(), mode=active_mode, fmt="PNG")
+        return Image.open(io.BytesIO(cleaned_bytes))
+
+    return cleaned_image
 
 
-def veo_watermark_info(width: int, height: int) -> dict[str, int]:
-    base = min(width, height)
-    size = max(24, min(round(base / 15), base))
-    margin = round(base / 10)
-    return {
-        "size": size,
-        "x": max(0, width - margin - size),
-        "y": max(0, height - margin - size),
-        "width": size,
-        "height": size,
-    }
+def sparkle_inpaint_mask(size: int, mask_image: Image.Image | None = None) -> np.ndarray:
+    """Generate a high-fidelity inpainting mask for the Gemini / Veo sparkle watermark.
+    Uses the canonical asset alpha channel with elliptical dilation to ensure 100% of the
+    star extremities, subtle glow, and anti-aliasing boundary are cleanly erased.
+    """
+    raw_mask = None
+    if mask_image is not None:
+        raw_mask = np.asarray(mask_image.convert("L"))
+    else:
+        candidates = [
+            Path(__file__).parent / "assets" / "bg_96.png",
+            Path(__file__).parent / "bg_96.png",
+            Path.cwd() / "assets" / "bg_96.png",
+            Path.cwd() / "developeros-watermark-studio" / "assets" / "bg_96.png",
+        ]
+        found = next((c for c in candidates if c.exists()), None)
+        if found:
+            raw_mask = np.asarray(Image.open(found).convert("L"))
 
+    if raw_mask is not None:
+        resized = cv2.resize(raw_mask, (size, size), interpolation=cv2.INTER_LINEAR)
+        binary = (resized > 4).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        return cv2.dilate(binary, kernel, iterations=1)
 
-def adaptive_video_offset(width: int, height: int) -> int:
-    scale_ratio = max(0.3, min(1.5, min(width, height) / 720))
-    return round(-24 * scale_ratio)
-
-
-def sparkle_inpaint_mask(size: int) -> np.ndarray:
+    # Fallback analytical polygon
     mask = np.zeros((size, size), dtype=np.uint8)
     center = size // 2
     inner = max(4, round(size * 0.28))
@@ -355,7 +758,7 @@ def sparkle_inpaint_mask(size: int) -> np.ndarray:
         dtype=np.int32,
     )
     cv2.fillPoly(mask, [points], 255)
-    return cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=2)
+    return cv2.dilate(mask, np.ones((7, 7), np.uint8), iterations=2)
 
 
 def reconstruct_rows(frame: np.ndarray, box: dict[str, int], mask: np.ndarray) -> np.ndarray:
@@ -389,10 +792,10 @@ def remove_watermark_from_video(
     size_scale: float = 1.0,
     offset_x: int | None = None,
     offset_y: int | None = None,
-    preset: str = "veo",
+    preset: str = "auto",
     method: str = "inpaint",
     progress_callback: callable | None = None,
-) -> None:
+) -> dict:
     if mask_path is None or not Path(mask_path).exists():
         candidates = [
             Path(__file__).parent / "assets" / "bg_96.png",
@@ -415,57 +818,143 @@ def remove_watermark_from_video(
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    base = veo_watermark_info(width, height)
-    if preset == "veo":
-        default_offset = adaptive_video_offset(width, height)
-    else:
-        default_offset = 0
-    with Image.open(mask_path) as mask_image:
-        # Sample across multiple key frames to reliably locate the watermark with highest confidence
-        sample_indices = [0]
-        if frame_count > 1:
-            step = max(1, min(int(fps * 0.75), frame_count // 6))
-            sample_indices = sorted(list({0, step, step * 2, step * 3, step * 4, min(frame_count - 1, int(fps * 2))}))
 
-        best_detected = None
-        best_score = -1.0
+    sample_indices = [0]
+    if frame_count > 1:
+        step = max(1, min(int(fps * 0.75), frame_count // 6))
+        sample_indices = sorted(list({0, step, step * 2, step * 3, step * 4, min(frame_count - 1, int(fps * 2))}))
 
+    is_text_watermark = False
+    text_detected = None
+
+    if preset == "veo_text":
         for s_idx in sample_indices:
             capture.set(cv2.CAP_PROP_POS_FRAMES, s_idx)
             ret, s_frame = capture.read()
             if not ret or s_frame is None:
                 continue
-            cand = detect_watermark_box(s_frame, mask_image, base)
-            cand_score = cand.get("score", 0.0)
-            if cand_score > best_score:
-                best_score = cand_score
-                best_detected = cand
-            if best_score >= 0.85:
+            cand_text = detect_veo_text_watermark(s_frame)
+            if cand_text and cand_text.get("score", 0.0) >= 0.45:
+                text_detected = cand_text
                 break
+        if text_detected:
+            is_text_watermark = True
 
+    elif preset == "auto":
+        # Check if first frame has a strong Veo text watermark
         capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        ret, s_frame = capture.read()
+        if ret and s_frame is not None:
+            cand_text = detect_veo_text_watermark(s_frame)
+            if cand_text and cand_text.get("score", 0.0) >= 0.75:
+                text_detected = cand_text
+                is_text_watermark = True
 
-        if best_detected is None:
-            best_detected = {"x": base["x"], "y": base["y"], "size": base["size"], "score": 0.0}
+    if is_text_watermark and text_detected:
+        pad = 6
+        tx = text_detected["x"]
+        ty = text_detected["y"]
+        tw = text_detected["width"]
+        th = text_detected["height"]
+        box = {
+            "x": max(0, tx - pad),
+            "y": max(0, ty - pad),
+            "width": min(width - tx, tw + pad * 2),
+            "height": min(height - ty, th + pad * 2),
+            "size": max(tw, th) + pad * 2,
+            "score": text_detected["score"],
+            "preset": text_detected["preset"],
+            "type": "text",
+        }
+        inpaint_mask = np.ones((box["height"], box["width"]), dtype=np.uint8) * 255
+        alpha = None
+        active = None
+    else:
+        # Standard or Inset Veo Sparkle watermark
+        base = veo_watermark_info(width, height)
+        if preset in ("auto", "veo", "veo_inset"):
+            default_offset = adaptive_video_offset(width, height)
+            base["x"] = max(0, base["x"] + default_offset)
+            base["y"] = max(0, base["y"] + default_offset)
+            base["preset"] = "veo-inset"
+        elif preset == "veo_standard":
+            base["preset"] = "veo-standard"
+        elif preset == "veo_compact":
+            scale = min(width / 1280.0, height / 720.0)
+            sz = max(24, round(44 * scale))
+            mr = max(8, round(29 * scale))
+            mb = max(8, round(40 * scale))
+            base = {
+                "size": sz,
+                "x": max(0, width - mr - sz),
+                "y": max(0, height - mb - sz),
+                "width": sz,
+                "height": sz,
+                "preset": "veo-compact",
+            }
+        elif preset == "corner":
+            base["preset"] = "corner"
 
-        detected = best_detected
-        detected_confidently = detected.get("score", 0.0) >= 0.35
-        detected_offset = 0 if detected_confidently else default_offset
-        box = resolve_box(
-            detected,
-            width,
-            height,
-            size_scale,
-            detected_offset if offset_x is None else offset_x,
-            detected_offset if offset_y is None else offset_y,
-        )
-        mask = np.asarray(
-            mask_image.resize((box["size"], box["size"]), Image.Resampling.BICUBIC).convert("RGB"),
-            dtype=np.float32,
-        )
-    alpha = np.minimum(mask.max(axis=2) / 255.0 * gain, MAX_ALPHA)
-    active = alpha >= ALPHA_THRESHOLD
-    inpaint_mask = sparkle_inpaint_mask(box["size"])
+        with Image.open(mask_path) as mask_image:
+            best_detected = None
+            best_score = -1.0
+
+            for s_idx in sample_indices:
+                capture.set(cv2.CAP_PROP_POS_FRAMES, s_idx)
+                ret, s_frame = capture.read()
+                if not ret or s_frame is None:
+                    continue
+                cand = detect_watermark_box(s_frame, mask_image, base)
+                cand_score = cand.get("score", 0.0)
+                if cand_score > best_score:
+                    best_score = cand_score
+                    best_detected = cand
+                if best_score >= 0.85:
+                    break
+
+            capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+            if best_detected is None or best_detected.get("score", 0.0) < 0.35:
+                detected = {
+                    "x": base["x"],
+                    "y": base["y"],
+                    "size": base["size"],
+                    "score": 0.0,
+                    "preset": base.get("preset", "fallback"),
+                }
+            else:
+                detected = best_detected
+
+            # Generous safety padding (6px) around the detected box guarantees all 4 star tips,
+            # subtle glow, and anti-aliasing edges are 100% encompassed inside the reconstruction zone.
+            pad = 6
+            exp_detected = {
+                "x": max(0, detected["x"] - pad),
+                "y": max(0, detected["y"] - pad),
+                "size": detected["size"] + pad * 2,
+                "width": detected.get("width", detected["size"]) + pad * 2,
+                "height": detected.get("height", detected["size"]) + pad * 2,
+                "preset": detected.get("preset", base.get("preset", "veo")),
+                "score": detected.get("score", 0.0),
+            }
+
+            box = resolve_box(
+                exp_detected,
+                width,
+                height,
+                size_scale,
+                0 if offset_x is None else offset_x,
+                0 if offset_y is None else offset_y,
+            )
+            box["preset"] = detected.get("preset", base.get("preset", "veo"))
+            box["score"] = detected.get("score", 0.0)
+            mask = np.asarray(
+                mask_image.resize((box["size"], box["size"]), Image.Resampling.BICUBIC).convert("RGB"),
+                dtype=np.float32,
+            )
+            alpha = np.minimum(mask.max(axis=2) / 255.0 * gain, MAX_ALPHA)
+            active = alpha >= ALPHA_THRESHOLD
+            inpaint_mask = sparkle_inpaint_mask(box["size"], mask_image)
 
     temporary = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
     temporary_path = Path(temporary.name)
@@ -488,25 +977,25 @@ def remove_watermark_from_video(
             if not success:
                 break
 
-            region = frame[box["y"] : box["y"] + box["height"], box["x"] : box["x"] + box["width"]].astype(np.float32)
-            if method == "reconstruct":
+            if is_text_watermark or method == "inpaint":
+                pad = 16
+                py0 = max(0, box["y"] - pad)
+                py1 = min(height, box["y"] + box["height"] + pad)
+                px0 = max(0, box["x"] - pad)
+                px1 = min(width, box["x"] + box["width"] + pad)
+
+                patch = frame[py0:py1, px0:px1].copy()
+                patch_mask = np.zeros(patch.shape[:2], dtype=np.uint8)
+                my0 = box["y"] - py0
+                mx0 = box["x"] - px0
+                patch_mask[my0 : my0 + box["height"], mx0 : mx0 + box["width"]] = inpaint_mask
+
+                cleaned_patch = cv2.inpaint(patch, patch_mask, 5, cv2.INPAINT_TELEA)
+                frame[py0:py1, px0:px1] = cleaned_patch
+            elif method == "reconstruct":
                 frame = reconstruct_rows(frame, box, inpaint_mask)
-            elif method == "inpaint":
-                cleaned_region = cv2.inpaint(
-                    frame,
-                    cv2.copyMakeBorder(
-                        inpaint_mask,
-                        box["y"],
-                        height - box["y"] - box["height"],
-                        box["x"],
-                        width - box["x"] - box["width"],
-                        cv2.BORDER_CONSTANT,
-                    ),
-                    7,
-                    cv2.INPAINT_TELEA,
-                )
-                frame = cleaned_region
             else:
+                region = frame[box["y"] : box["y"] + box["height"], box["x"] : box["x"] + box["width"]].astype(np.float32)
                 restored = (region - alpha[:, :, None] * LOGO_VALUE) / (1.0 - alpha[:, :, None])
                 region[active] = np.clip(restored[active], 0, 255)
                 frame[box["y"] : box["y"] + box["height"], box["x"] : box["x"] + box["width"]] = region.astype(np.uint8)
@@ -553,22 +1042,49 @@ def remove_watermark_from_video(
         shutil.copyfile(temporary_path, output_path)
 
     temporary_path.unlink(missing_ok=True)
+    return box
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Remove a Gemini sparkle watermark from an image."
+        description="Remove a Gemini sparkle watermark and/or SynthID and provenance fingerprints from an image or video."
     )
     parser.add_argument("input", type=Path, help="Input image or video")
-    parser.add_argument("output", type=Path, help="Output PNG or MP4 path")
+    parser.add_argument("output", type=Path, nargs="?", default=None, help="Output PNG or MP4 path")
     parser.add_argument("--gain", type=float, default=0.6, help="Watermark strength")
     parser.add_argument("--size-scale", type=float, default=1.0)
     parser.add_argument("--offset-x", type=int, default=None)
     parser.add_argument("--offset-y", type=int, default=None)
-    parser.add_argument("--preset", choices=("veo", "corner"), default="veo")
+    parser.add_argument(
+        "--preset",
+        choices=("auto", "veo", "veo_inset", "veo_standard", "veo_compact", "corner", "veo_text"),
+        default="auto",
+    )
     parser.add_argument("--method", choices=("math", "inpaint", "reconstruct"), default="inpaint")
     parser.add_argument("--mask", type=Path, help="Optional custom logo mask image")
+    parser.add_argument(
+        "--synthid-mode",
+        choices=("none", "safe", "paranoid", "nuclear"),
+        default="none",
+        help="SynthID & fingerprint cleaning tier (safe=lossless C2PA strip, paranoid=quantization reset, nuclear=frequency disruption)",
+    )
+    parser.add_argument("--strip-metadata", action="store_true", help="Strip C2PA and non-essential container metadata")
+    parser.add_argument("--inspect", action="store_true", help="Inspect file for C2PA manifests, AI prompts, and EXIF fingerprints")
     args = parser.parse_args()
+
+    if args.inspect:
+        if inspect_image_fingerprints is None:
+            print("Fingerprint inspector module not available.")
+            return
+        data = args.input.read_bytes()
+        rep = inspect_image_fingerprints(data, args.input.name)
+        print(f"File: {args.input.name} | Format: {rep['format']} | Findings: {rep['finding_count']} | Clean: {rep['is_clean']}")
+        for f in rep["findings"]:
+            print(f" • [{f['severity'].upper()}] {f['name']} ({f['category']}): {f['detail']}")
+        return
+
+    if not args.output:
+        parser.error("Output path is required when not using --inspect")
 
     if args.gain <= 0 or args.size_scale <= 0:
         parser.error("--gain and --size-scale must be greater than zero")
@@ -600,6 +1116,9 @@ def main() -> None:
                 size_scale=args.size_scale,
                 offset_x=args.offset_x if args.offset_x is not None else 0,
                 offset_y=args.offset_y if args.offset_y is not None else 0,
+                method=args.method,
+                synthid_mode=args.synthid_mode,
+                strip_metadata=args.strip_metadata,
             )
         cleaned.save(args.output, "PNG")
 
